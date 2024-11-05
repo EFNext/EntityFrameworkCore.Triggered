@@ -1,11 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
   </ItemGroup>
-  
   <ItemGroup>
     <ProjectReference Include="..\EntityFrameworkCore.Triggered.Abstractions\EntityFrameworkCore.Triggered.Abstractions.csproj" />
   </ItemGroup>
-
 </Project>

@@ -1,9 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <Nullable>disable</Nullable>
   </PropertyGroup>
-
   <ItemGroup>
 	<PackageReference Include="coverlet.collector">
 	  <PrivateAssets>all</PrivateAssets>
@@ -18,9 +16,7 @@
 	  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 	</PackageReference>
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\..\src\EntityFrameworkCore.Triggered.Extensions\EntityFrameworkCore.Triggered.Extensions.csproj" />
   </ItemGroup>
-
 </Project>

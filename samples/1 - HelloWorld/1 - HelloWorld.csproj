@@ -1,11 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <RootNamespace>HelloWorld</RootNamespace>
     <Nullable>disable</Nullable>
   </PropertyGroup>
-
   <ItemGroup>
 	<PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
   </ItemGroup>

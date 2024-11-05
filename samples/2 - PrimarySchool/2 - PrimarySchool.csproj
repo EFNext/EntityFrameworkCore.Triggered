@@ -1,11 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <RootNamespace>PrimarySchool</RootNamespace>
     <Nullable>disable</Nullable>
   </PropertyGroup>
-
   <ItemGroup>
 	<PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
   </ItemGroup>
@@ -13,5 +11,4 @@
   <ItemGroup>
 	<ProjectReference Include="..\..\src\EntityFrameworkCore.Triggered\EntityFrameworkCore.Triggered.csproj" />
   </ItemGroup>
-
 </Project>
