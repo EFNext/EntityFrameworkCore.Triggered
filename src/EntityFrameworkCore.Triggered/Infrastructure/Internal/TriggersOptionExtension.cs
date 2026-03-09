@@ -17,6 +17,7 @@ namespace EntityFrameworkCore.Triggered.Infrastructure.Internal
         sealed class ExtensionInfo : DbContextOptionsExtensionInfo
         {
             private string? _logFragment;
+            private int? _serviceProviderHashCode;
             public ExtensionInfo(IDbContextOptionsExtension extension) : base(extension)
             {
             }
@@ -44,14 +45,19 @@ namespace EntityFrameworkCore.Triggered.Infrastructure.Internal
                     throw new ArgumentNullException(nameof(debugInfo));
                 }
 
-                debugInfo["Triggers:TriggersCount"] = (Extension._triggers?.Count() ?? 0).ToString();
-                debugInfo["Triggers:TriggerTypesCount"] = (Extension._triggerTypes?.Count() ?? 0).ToString();
+                debugInfo["Triggers:TriggersCount"] = (Extension._triggers?.Count ?? 0).ToString();
+                debugInfo["Triggers:TriggerTypesCount"] = (Extension._triggerTypes?.Count ?? 0).ToString();
                 debugInfo["Triggers:MaxCascadeCycles"] = Extension._maxCascadeCycles.ToString();
                 debugInfo["Triggers:CascadeBehavior"] = Extension._cascadeBehavior.ToString();
             }
 
             public override int GetServiceProviderHashCode()
             {
+                if (_serviceProviderHashCode.HasValue)
+                {
+                    return _serviceProviderHashCode.Value;
+                }
+
                 var hashCode = new HashCode();
 
                 if (Extension._triggers != null)
@@ -78,28 +84,56 @@ namespace EntityFrameworkCore.Triggered.Infrastructure.Internal
                     hashCode.Add(Extension._serviceProviderTransform);
                 }
 
-                return hashCode.ToHashCode();
+                _serviceProviderHashCode = hashCode.ToHashCode();
+                return _serviceProviderHashCode.Value;
             }
 
             public override bool ShouldUseSameServiceProvider(DbContextOptionsExtensionInfo other)
-                => other is ExtensionInfo otherInfo
-                    && Enumerable.SequenceEqual(Extension._triggers ?? Enumerable.Empty<ValueTuple<object, ServiceLifetime>>(), otherInfo.Extension._triggers ?? Enumerable.Empty<ValueTuple<object, ServiceLifetime>>())
-                    && Enumerable.SequenceEqual(Extension._triggerTypes ?? Enumerable.Empty<Type>(), otherInfo.Extension._triggerTypes ?? Enumerable.Empty<Type>())
-                    && Extension._maxCascadeCycles == otherInfo.Extension._maxCascadeCycles
-                    && Extension._cascadeBehavior == otherInfo.Extension._cascadeBehavior
-                    && Extension._serviceProviderTransform == otherInfo.Extension._serviceProviderTransform;
+            {
+                if (other is not ExtensionInfo otherInfo)
+                {
+                    return false;
+                }
+
+                // Check cheap scalar comparisons first
+                if (Extension._maxCascadeCycles != otherInfo.Extension._maxCascadeCycles
+                    || Extension._cascadeBehavior != otherInfo.Extension._cascadeBehavior
+                    || Extension._serviceProviderTransform != otherInfo.Extension._serviceProviderTransform)
+                {
+                    return false;
+                }
+
+                // Check list counts before doing full sequence comparison
+                var triggersCount = Extension._triggers?.Count ?? 0;
+                var otherTriggersCount = otherInfo.Extension._triggers?.Count ?? 0;
+                if (triggersCount != otherTriggersCount)
+                {
+                    return false;
+                }
+
+                var triggerTypesCount = Extension._triggerTypes?.Count ?? 0;
+                var otherTriggerTypesCount = otherInfo.Extension._triggerTypes?.Count ?? 0;
+                if (triggerTypesCount != otherTriggerTypesCount)
+                {
+                    return false;
+                }
+
+                // Full sequence comparison only when counts match
+                return Enumerable.SequenceEqual(Extension._triggers ?? Enumerable.Empty<ValueTuple<object, ServiceLifetime>>(), otherInfo.Extension._triggers ?? Enumerable.Empty<ValueTuple<object, ServiceLifetime>>())
+                    && Enumerable.SequenceEqual(Extension._triggerTypes ?? Enumerable.Empty<Type>(), otherInfo.Extension._triggerTypes ?? Enumerable.Empty<Type>());
+            }
         }
 
         private ExtensionInfo? _info;
-        private IEnumerable<(object typeOrInstance, ServiceLifetime lifetime)>? _triggers;
-        private IEnumerable<Type> _triggerTypes;
+        private List<(object typeOrInstance, ServiceLifetime lifetime)>? _triggers;
+        private List<Type> _triggerTypes;
         private int _maxCascadeCycles = 100;
         private CascadeBehavior _cascadeBehavior = CascadeBehavior.EntityAndType;
         private Func<IServiceProvider, IServiceProvider>? _serviceProviderTransform;
 
         public TriggersOptionExtension()
         {
-            _triggerTypes = new[] {
+            _triggerTypes = new List<Type> {
                 typeof(IBeforeSaveTrigger<>),
                 typeof(IBeforeSaveAsyncTrigger<>),
                 typeof(IAfterSaveTrigger<>),
@@ -125,10 +159,10 @@ namespace EntityFrameworkCore.Triggered.Infrastructure.Internal
         {
             if (copyFrom._triggers != null)
             {
-                _triggers = copyFrom._triggers;
+                _triggers = new List<(object typeOrInstance, ServiceLifetime lifetime)>(copyFrom._triggers);
             }
 
-            _triggerTypes = copyFrom._triggerTypes;
+            _triggerTypes = new List<Type>(copyFrom._triggerTypes);
             _maxCascadeCycles = copyFrom._maxCascadeCycles;
             _cascadeBehavior = copyFrom._cascadeBehavior;
             _serviceProviderTransform = copyFrom._serviceProviderTransform;
@@ -263,17 +297,8 @@ namespace EntityFrameworkCore.Triggered.Infrastructure.Internal
             }
 
             var clone = Clone();
-            var triggerEnumerable = Enumerable.Repeat(((object)triggerType, lifetime), 1);
-
-            if (clone._triggers == null)
-            {
-                clone._triggers = triggerEnumerable;
-            }
-            else
-            {
-                clone._triggers = clone._triggers.Concat(triggerEnumerable);
-            }
-
+            clone._triggers ??= new List<(object typeOrInstance, ServiceLifetime lifetime)>();
+            clone._triggers.Add(((object)triggerType, lifetime));
 
             return clone;
         }
@@ -291,17 +316,8 @@ namespace EntityFrameworkCore.Triggered.Infrastructure.Internal
             }
 
             var clone = Clone();
-            var triggersEnumerable = Enumerable.Repeat((instance, ServiceLifetime.Singleton), 1);
-
-            if (clone._triggers == null)
-            {
-                clone._triggers = triggersEnumerable;
-            }
-            else
-            {
-                clone._triggers = clone._triggers.Concat(triggersEnumerable);
-            }
-
+            clone._triggers ??= new List<(object typeOrInstance, ServiceLifetime lifetime)>();
+            clone._triggers.Add((instance, ServiceLifetime.Singleton));
 
             return clone;
         }
@@ -313,19 +329,9 @@ namespace EntityFrameworkCore.Triggered.Infrastructure.Internal
                 throw new ArgumentNullException(nameof(triggerType));
             }
 
-
             var clone = Clone();
-            var triggerTypesEnumerable = Enumerable.Repeat(triggerType, 1);
-
-            if (clone._triggerTypes == null)
-            {
-                clone._triggerTypes = triggerTypesEnumerable;
-            }
-            else
-            {
-                clone._triggerTypes = clone._triggerTypes.Concat(triggerTypesEnumerable);
-            }
-
+            clone._triggerTypes ??= new List<Type>();
+            clone._triggerTypes.Add(triggerType);
 
             return clone;
         }
