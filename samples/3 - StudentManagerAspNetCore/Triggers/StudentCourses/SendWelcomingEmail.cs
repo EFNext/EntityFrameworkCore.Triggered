@@ -5,7 +5,7 @@ using StudentManager.Services;
 
 namespace StudentManager.Triggers.StudentCourses
 {
-    public class SendWelcomingEmail : IAfterSaveTrigger<StudentCourse>
+    public class SendWelcomingEmail : IAfterSaveAsyncTrigger<StudentCourse>
     {
         readonly ApplicationDbContext _applicationContext;
         readonly EmailService _emailService;
@@ -16,7 +16,7 @@ namespace StudentManager.Triggers.StudentCourses
             _emailService = emailService;
         }
 
-        public async Task AfterSave(ITriggerContext<StudentCourse> context, CancellationToken cancellationToken)
+        public async Task AfterSaveAsync(ITriggerContext<StudentCourse> context, CancellationToken cancellationToken)
         {
             var student = await _applicationContext.Students.FindAsync(new object[] { context.Entity.StudentId }, cancellationToken);
             var course = await _applicationContext.Courses.FindAsync(new object[] { context.Entity.CourseId }, cancellationToken);

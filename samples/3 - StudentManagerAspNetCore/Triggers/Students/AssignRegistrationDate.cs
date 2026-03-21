@@ -5,9 +5,9 @@ using EntityFrameworkCore.Triggered;
 
 namespace StudentManager.Triggers.Students
 {
-    public class AssignRegistrationDate : IBeforeSaveTrigger<Student>
+    public class AssignRegistrationDate : IBeforeSaveAsyncTrigger<Student>
     {
-        public Task BeforeSave(ITriggerContext<Student> context, CancellationToken cancellationToken)
+        public Task BeforeSaveAsync(ITriggerContext<Student> context, CancellationToken cancellationToken)
         {
             context.Entity.RegistrationDate = DateTime.Today;
 

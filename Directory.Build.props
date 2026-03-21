@@ -1,31 +1,24 @@
 <Project>
 
-  <PropertyGroup>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <LangVersion>9.0</LangVersion>
-    <Nullable>enable</Nullable>
-    <EnableNETAnalyzers>true</EnableNETAnalyzers>
-    <Configurations>Debug;Release</Configurations>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-	</PropertyGroup>
+    <PropertyGroup>
+        <LangVersion>12</LangVersion>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <EnableNETAnalyzers>true</EnableNETAnalyzers>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
 
-  <PropertyGroup>
-    <Description>Triggers for EF Core. Respond to changes in your ApplicationDbContext before and after they are committed to the database</Description>
-    <RepositoryType>Git</RepositoryType>
-    <RepositoryUrl>https://github.com/koenbeuk/EntityFrameworkCore.Triggered</RepositoryUrl>
-    <Authors>Koen Bekkenutte</Authors>
-    <PackageTags>EntityFramework;EFCore;Triggers;SQLServer;SqlLite;CosmosDb;.NET Core;aspnetcore</PackageTags>
-    <PackageProjectUrl>https://github.com/koenbeuk/EntityFrameworkCore.Triggered</PackageProjectUrl>
-  </PropertyGroup>
- 
-  <PropertyGroup>
-    <EFCoreTriggeredVersion>3</EFCoreTriggeredVersion>
-    <EFCorePackageVersion>6.0.0</EFCorePackageVersion>
-    <MicrosoftExtensionsVersion>6.0.0</MicrosoftExtensionsVersion>
-  </PropertyGroup>
+    <PropertyGroup>
+        <Description>Triggers for EF Core. Respond to changes in your ApplicationDbContext before and after they are committed to the database</Description>
+        <RepositoryType>Git</RepositoryType>
+        <RepositoryUrl>https://github.com/koenbeuk/EntityFrameworkCore.Triggered</RepositoryUrl>
+        <Authors>Koen Bekkenutte</Authors>
+        <PackageTags>EntityFramework;EFCore;Triggers;SQLServer;SqlLite;CosmosDb;.NET Core;aspnetcore</PackageTags>
+        <PackageProjectUrl>https://github.com/koenbeuk/EntityFrameworkCore.Triggered</PackageProjectUrl>
+    </PropertyGroup>
 
-	<ItemGroup>
-		<None Include="$(SolutionDir)\README.md" Pack="true" PackagePath="\"></None>
-	</ItemGroup>
+    <ItemGroup>
+        <None Include="$(SolutionDir)\README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
 
 </Project>

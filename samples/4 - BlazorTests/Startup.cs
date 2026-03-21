@@ -24,7 +24,7 @@ namespace BlazorTests
             services.AddServerSideBlazor();
             services.AddSingleton<EventAggregator>();
 
-            services.AddTriggeredDbContextFactory<ApplicationDbContext>(options => {
+            services.AddTriggeredDbContextFactory<ApplicationDbContext>((_, options) => {
                 options
                     .UseSqlite("Data source=test.db")
                     .UseTriggers(triggerOptions => {
