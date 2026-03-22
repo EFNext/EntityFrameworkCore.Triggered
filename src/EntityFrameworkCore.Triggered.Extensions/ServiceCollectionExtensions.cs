@@ -1,8 +1,9 @@
 ﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using EntityFrameworkCore.Triggered;
-using EntityFrameworkCore.Triggered.Infrastructure.Internal;
 using EntityFrameworkCore.Triggered.Lifecycles;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -10,41 +11,91 @@ namespace Microsoft.Extensions.DependencyInjection
 {
     public static class ServiceCollectionExtensions
     {
-        static readonly Type[] _wellKnownTriggerTypes = new Type[] {
-                typeof(IBeforeSaveTrigger<>),
-                typeof(IBeforeSaveAsyncTrigger<>),
-                typeof(IAfterSaveTrigger<>),
-                typeof(IAfterSaveAsyncTrigger<>),
-                typeof(IAfterSaveFailedTrigger<>),
-                typeof(IAfterSaveFailedAsyncTrigger<>),
-                typeof(IBeforeSaveStartingTrigger),
-                typeof(IBeforeSaveStartingAsyncTrigger),
-                typeof(IBeforeSaveCompletedTrigger),
-                typeof(IBeforeSaveCompletedAsyncTrigger),
-                typeof(IAfterSaveFailedStartingTrigger),
-                typeof(IAfterSaveFailedStartingAsyncTrigger),
-                typeof(IAfterSaveFailedCompletedTrigger),
-                typeof(IAfterSaveFailedCompletedAsyncTrigger),
-                typeof(IAfterSaveStartingTrigger),
-                typeof(IAfterSaveStartingAsyncTrigger),
-                typeof(IAfterSaveCompletedTrigger),
-                typeof(IAfterSaveCompletedAsyncTrigger)
-            };
-
-        static void RegisterTriggerTypes(Type triggerImplementationType, IServiceCollection services)
+        // Open generic trigger interfaces — add new generic lifecycle interfaces here
+        private readonly static HashSet<Type> _genericTriggerTypes = new HashSet<Type>
         {
-            foreach (var customTriggerType in _wellKnownTriggerTypes)
-            {
-                var customTriggers = customTriggerType.IsGenericTypeDefinition
-#pragma warning disable EF1001 // Internal EF Core API usage.
-                    ? TypeHelpers.FindGenericInterfaces(triggerImplementationType, customTriggerType)
-#pragma warning restore EF1001 // Internal EF Core API usage.
-                    : triggerImplementationType.GetInterfaces().Where(x => x == customTriggerType);
+            typeof(IBeforeSaveTrigger<>),
+            typeof(IBeforeSaveAsyncTrigger<>),
+            typeof(IAfterSaveTrigger<>),
+            typeof(IAfterSaveAsyncTrigger<>),
+            typeof(IAfterSaveFailedTrigger<>),
+            typeof(IAfterSaveFailedAsyncTrigger<>),
+        };
 
-                foreach (var customTrigger in customTriggers)
+        // Non-generic lifecycle interfaces — add new non-generic lifecycle interfaces here
+        private readonly static HashSet<Type> _nonGenericTriggerTypes = new HashSet<Type>
+        {
+            typeof(IBeforeSaveStartingTrigger),
+            typeof(IBeforeSaveStartingAsyncTrigger),
+            typeof(IBeforeSaveCompletedTrigger),
+            typeof(IBeforeSaveCompletedAsyncTrigger),
+            typeof(IAfterSaveFailedStartingTrigger),
+            typeof(IAfterSaveFailedStartingAsyncTrigger),
+            typeof(IAfterSaveFailedCompletedTrigger),
+            typeof(IAfterSaveFailedCompletedAsyncTrigger),
+            typeof(IAfterSaveStartingTrigger),
+            typeof(IAfterSaveStartingAsyncTrigger),
+            typeof(IAfterSaveCompletedTrigger),
+            typeof(IAfterSaveCompletedAsyncTrigger),
+        };
+
+        // Caches the resolved trigger interfaces per implementation type to avoid repeated reflection
+        private readonly static ConcurrentDictionary<Type, Type[]> _triggerInterfaceCache =
+            new ConcurrentDictionary<Type, Type[]>();
+
+        /// <summary>
+        /// Returns the types defined in <paramref name="assembly"/>, gracefully handling
+        /// <see cref="ReflectionTypeLoadException"/> that occurs when some types cannot be
+        /// loaded due to missing dependencies (e.g. optional assemblies not present at runtime).
+        /// </summary>
+        private static IEnumerable<Type> GetAssemblyTypes(Assembly assembly)
+        {
+            try
+            {
+                return assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException e)
+            {
+                // Return only the types that could be loaded; nulls represent types that failed
+                return e.Types.OfType<Type>();
+            }
+        }
+
+        /// <summary>
+        /// Returns the subset of <paramref name="triggerImplementationType"/>'s interfaces
+        /// that match a known trigger interface, using a per-type cache.
+        /// </summary>
+        private static Type[] GetTriggerInterfaces(Type triggerImplementationType)
+            => _triggerInterfaceCache.GetOrAdd(triggerImplementationType, t =>
+            {
+                var interfaces = t.GetInterfaces();
+                var result = new List<Type>(interfaces.Length);
+
+                foreach (var iface in interfaces)
                 {
-                    services.Add(new ServiceDescriptor(customTrigger, sp => sp.GetRequiredService(triggerImplementationType), ServiceLifetime.Transient)); ;
+                    if (iface.IsConstructedGenericType)
+                    {
+                        if (_genericTriggerTypes.Contains(iface.GetGenericTypeDefinition()))
+                        {
+                            result.Add(iface);
+                        }
+                    }
+                    else if (_nonGenericTriggerTypes.Contains(iface))
+                    {
+                        result.Add(iface);
+                    }
                 }
+
+                return result.ToArray();
+            });
+
+        private static void RegisterTriggerTypes(Type triggerImplementationType, IServiceCollection services)
+        {
+            var triggerInterfaces = GetTriggerInterfaces(triggerImplementationType);
+
+            foreach (var triggerInterface in triggerInterfaces)
+            {
+                services.Add(new ServiceDescriptor(triggerInterface, sp => sp.GetRequiredService(triggerImplementationType), ServiceLifetime.Transient));
             }
         }
 
@@ -60,6 +111,11 @@ namespace Microsoft.Extensions.DependencyInjection
 
         public static IServiceCollection AddTrigger(this IServiceCollection services, object triggerInstance)
         {
+            if (triggerInstance is null)
+            {
+                throw new ArgumentNullException(nameof(triggerInstance));
+            }
+
             services.TryAddSingleton(triggerInstance);
 
             RegisterTriggerTypes(triggerInstance.GetType(), services);
@@ -83,29 +139,29 @@ namespace Microsoft.Extensions.DependencyInjection
                 throw new ArgumentNullException(nameof(assemblies));
             }
 
+            if (assemblies.Length == 0)
+            {
+                return services;
+            }
+
             var assemblyTypes = assemblies
-                .SelectMany(x => x.GetTypes())
-                .Where(x => x.IsClass)
-                .Where(x => !x.IsAbstract);
+                .SelectMany(GetAssemblyTypes)
+                .Where(x => x is { IsClass: true, IsAbstract: false });
 
             foreach (var assemblyType in assemblyTypes)
             {
-                var triggerTypes = assemblyType
-                    .GetInterfaces()
-                    .Where(x => _wellKnownTriggerTypes.Contains(x.IsConstructedGenericType ? x.GetGenericTypeDefinition() : x));
+                var triggerInterfaces = GetTriggerInterfaces(assemblyType);
 
-                var registered = false;
-
-                foreach (var triggerType in triggerTypes)
+                if (triggerInterfaces.Length == 0)
                 {
-                    if (!registered)
-                    {
-                        services.TryAdd(new ServiceDescriptor(assemblyType, assemblyType, lifetime));
+                    continue;
+                }
 
-                        registered = true;
-                    }
+                services.TryAdd(new ServiceDescriptor(assemblyType, assemblyType, lifetime));
 
-                    services.Add(new ServiceDescriptor(triggerType, sp => sp.GetRequiredService(assemblyType), ServiceLifetime.Transient));
+                foreach (var triggerInterface in triggerInterfaces)
+                {
+                    services.Add(new ServiceDescriptor(triggerInterface, sp => sp.GetRequiredService(assemblyType), ServiceLifetime.Transient));
                 }
             }
 
