@@ -22,6 +22,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\EntityFrameworkCore.Triggered\EntityFrameworkCore.Triggered.csproj" />
+        <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\EntityFrameworkCore.Triggered\EntityFrameworkCore.Triggered.csproj" />
     </ItemGroup>
 </Project>
