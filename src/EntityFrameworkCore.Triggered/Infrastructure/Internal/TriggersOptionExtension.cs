@@ -257,13 +257,13 @@ namespace EntityFrameworkCore.Triggered.Infrastructure.Internal
 
         private bool TypeIsValidTrigger(Type type)
         {
-            if (TypeHelpers.FindGenericInterfaces(type, typeof(IBeforeSaveTrigger<>)) != null || TypeHelpers.FindGenericInterfaces(type, typeof(IAfterSaveTrigger<>)) != null)
+            if (TypeHelpers.FindGenericInterfaces(type, typeof(IBeforeSaveTrigger<>)).Any() || TypeHelpers.FindGenericInterfaces(type, typeof(IAfterSaveTrigger<>)).Any())
             {
                 return true;
             }
             else if (_triggerTypes != null)
             {
-                return _triggerTypes.Any(triggerType => TypeHelpers.FindGenericInterfaces(type, triggerType) != null);
+                return _triggerTypes.Any(triggerType => TypeHelpers.FindGenericInterfaces(type, triggerType).Any());
             }
             else
             {
