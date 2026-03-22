@@ -17,6 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\EntityFrameworkCore.Triggered\EntityFrameworkCore.Triggered.csproj" />
+    <ProjectReference Include="..\..\src\EntityFrameworkCore.Triggered.Extensions\EntityFrameworkCore.Triggered.Extensions.csproj" />
   </ItemGroup>
 
 </Project>
