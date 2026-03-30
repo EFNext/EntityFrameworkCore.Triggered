@@ -5,7 +5,7 @@ using EntityFrameworkCore.Triggered;
 
 namespace StudentManager.Triggers.StudentCourses
 {
-    public class BlockRemovalWhenCourseIsMandatory : IBeforeSaveTrigger<StudentCourse>
+    public class BlockRemovalWhenCourseIsMandatory : IBeforeSaveAsyncTrigger<StudentCourse>
     {
         readonly ApplicationDbContext _applicationContext;
 
@@ -14,7 +14,7 @@ namespace StudentManager.Triggers.StudentCourses
             _applicationContext = applicationContext;
         }
 
-        public async Task BeforeSave(ITriggerContext<StudentCourse> context, CancellationToken cancellationToken)
+        public async Task BeforeSaveAsync(ITriggerContext<StudentCourse> context, CancellationToken cancellationToken)
         {
             if (context.ChangeType == ChangeType.Deleted)
             {

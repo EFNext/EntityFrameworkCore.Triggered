@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="$(EFCorePackageVersion)" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
   </ItemGroup>
   
   <ItemGroup>

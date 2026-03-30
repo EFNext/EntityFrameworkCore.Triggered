@@ -4,7 +4,7 @@ using EntityFrameworkCore.Triggered;
 
 namespace BlazorTests.Triggers.Counts
 {
-    public class PublishCountAddedEvent : IAfterSaveTrigger<Count>
+    public class PublishCountAddedEvent : IAfterSaveAsyncTrigger<Count>
     {
         private readonly EventAggregator _eventAggregator;
 
@@ -13,7 +13,7 @@ namespace BlazorTests.Triggers.Counts
             _eventAggregator = eventAggregator;
         }
 
-        public Task AfterSave(ITriggerContext<Count> context, CancellationToken cancellationToken)
+        public Task AfterSaveAsync(ITriggerContext<Count> context, CancellationToken cancellationToken)
         {
             if (context.ChangeType == ChangeType.Added)
             {

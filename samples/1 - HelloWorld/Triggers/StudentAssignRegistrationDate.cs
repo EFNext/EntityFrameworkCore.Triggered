@@ -5,9 +5,9 @@ using EntityFrameworkCore.Triggered;
 
 namespace PrimarySchool.Triggers
 {
-    public class StudentAssignRegistrationDate : IBeforeSaveTrigger<Student>
+    public class StudentAssignRegistrationDate : IBeforeSaveAsyncTrigger<Student>
     {
-        public Task BeforeSave(ITriggerContext<Student> context, CancellationToken cancellationToken)
+        public Task BeforeSaveAsync(ITriggerContext<Student> context, CancellationToken cancellationToken)
         {
             if (context.ChangeType == ChangeType.Added)
             {

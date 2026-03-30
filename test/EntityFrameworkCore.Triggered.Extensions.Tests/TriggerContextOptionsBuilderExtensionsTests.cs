@@ -24,7 +24,7 @@ namespace EntityFrameworkCore.Triggered.Extensions.Tests
             var triggerOptionExtension = context.Options.Extensions.OfType<TriggersOptionExtension>().Single();
 
             // Ensure that we did not register the AbstractTrigger
-            Assert.Empty(triggerOptionExtension.Triggers.Where(x => ReferenceEquals(x.typeOrInstance, typeof(AbstractTrigger))));
+            Assert.DoesNotContain(triggerOptionExtension.Triggers, x => ReferenceEquals(x.typeOrInstance, typeof(AbstractTrigger)));
         }
     }
 }

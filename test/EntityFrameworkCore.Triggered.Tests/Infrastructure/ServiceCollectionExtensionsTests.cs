@@ -93,7 +93,7 @@ namespace EntityFrameworkCore.Triggered.Tests.Infrastructure
 
             var triggerStub = scope.ServiceProvider.GetRequiredService<IBeforeSaveTrigger<TestModel>>() as TriggerStub<TestModel>;
             Assert.NotNull(triggerStub);
-            Assert.Equal(1, triggerStub.BeforeSaveInvocations.Count);
+            Assert.Single(triggerStub.BeforeSaveInvocations);
         }
 
 
@@ -119,7 +119,7 @@ namespace EntityFrameworkCore.Triggered.Tests.Infrastructure
 
             var triggerStub = scope.ServiceProvider.GetRequiredService<IBeforeSaveTrigger<TestModel>>() as TriggerStub<TestModel>;
             Assert.NotNull(triggerStub);
-            Assert.Equal(1, triggerStub.BeforeSaveInvocations.Count);
+            Assert.Single(triggerStub.BeforeSaveInvocations);
         }
 
         [Fact]
@@ -164,12 +164,11 @@ namespace EntityFrameworkCore.Triggered.Tests.Infrastructure
             Assert.Equal(context1, context1);
         }
 
-#if EFCORETRIGGERED2 || EFCORETRIGGERED3
         [Fact]
         public void AddTriggeredDbContextFactory_ReusesScopedServiceProvider()
         {
             var subject = new ServiceCollection();
-            subject.AddTriggeredDbContextFactory<TestDbContext>(options => {
+            subject.AddTriggeredDbContextFactory<TestDbContext>((_, options) => {
                 options.UseInMemoryDatabase("test");
                 options.ConfigureWarnings(warningOptions => {
                     warningOptions.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning);
@@ -189,7 +188,7 @@ namespace EntityFrameworkCore.Triggered.Tests.Infrastructure
 
             var triggerStub = scope.ServiceProvider.GetRequiredService<IBeforeSaveTrigger<TestModel>>() as TriggerStub<TestModel>;
             Assert.NotNull(triggerStub);
-            Assert.Equal(1, triggerStub.BeforeSaveInvocations.Count);
+            Assert.Single(triggerStub.BeforeSaveInvocations);
         }
 
         [Fact]
@@ -217,7 +216,7 @@ namespace EntityFrameworkCore.Triggered.Tests.Infrastructure
 
             var triggerStub = scope.ServiceProvider.GetRequiredService<IBeforeSaveTrigger<TestModel>>() as TriggerStub<TestModel>;
             Assert.NotNull(triggerStub);
-            Assert.Equal(1, triggerStub.BeforeSaveInvocations.Count);
+            Assert.Single(triggerStub.BeforeSaveInvocations);
         }
 
         [Fact]
@@ -244,8 +243,7 @@ namespace EntityFrameworkCore.Triggered.Tests.Infrastructure
 
             var triggerStub = scope.ServiceProvider.GetRequiredService<IBeforeSaveTrigger<TestModel>>() as TriggerStub<TestModel>;
             Assert.NotNull(triggerStub);
-            Assert.Equal(1, triggerStub.BeforeSaveInvocations.Count);
+            Assert.Single(triggerStub.BeforeSaveInvocations);
         }
-#endif
     }
 }

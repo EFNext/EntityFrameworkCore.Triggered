@@ -80,7 +80,7 @@ namespace EntityFrameworkCore.Triggered.Transactions.Tests
             session.DiscoverChanges();
             session.RaiseBeforeCommitTriggers();
 
-            Assert.Equal(1, context.TriggerStub.BeforeCommitInvocations.Count);
+            Assert.Single(context.TriggerStub.BeforeCommitInvocations);
         }
 
         [Fact]
@@ -97,7 +97,7 @@ namespace EntityFrameworkCore.Triggered.Transactions.Tests
             session.DiscoverChanges();
             await session.RaiseBeforeCommitAsyncTriggers();
 
-            Assert.Equal(1, context.TriggerStub.BeforeCommitAsyncInvocations.Count);
+            Assert.Single(context.TriggerStub.BeforeCommitAsyncInvocations);
         }
 
         [Fact]
@@ -138,7 +138,7 @@ namespace EntityFrameworkCore.Triggered.Transactions.Tests
             session.DiscoverChanges();
             session.RaiseAfterCommitTriggers();
 
-            Assert.Equal(1, context.TriggerStub.AfterCommitInvocations.Count);
+            Assert.Single(context.TriggerStub.AfterCommitInvocations);
         }
 
         [Fact]
@@ -155,7 +155,7 @@ namespace EntityFrameworkCore.Triggered.Transactions.Tests
             session.DiscoverChanges();
             await session.RaiseAfterCommitAsyncTriggers();
 
-            Assert.Equal(1, context.TriggerStub.AfterCommitAsyncInvocations.Count);
+            Assert.Single(context.TriggerStub.AfterCommitAsyncInvocations);
         }
 
         [Fact]
@@ -196,7 +196,7 @@ namespace EntityFrameworkCore.Triggered.Transactions.Tests
             session.DiscoverChanges();
             session.RaiseBeforeRollbackTriggers();
 
-            Assert.Equal(1, context.TriggerStub.BeforeRollbackInvocations.Count);
+            Assert.Single(context.TriggerStub.BeforeRollbackInvocations);
         }
 
         [Fact]
@@ -213,7 +213,7 @@ namespace EntityFrameworkCore.Triggered.Transactions.Tests
             session.DiscoverChanges();
             await session.RaiseBeforeRollbackAsyncTriggers();
 
-            Assert.Equal(1, context.TriggerStub.BeforeRollbackAsyncInvocations.Count);
+            Assert.Single(context.TriggerStub.BeforeRollbackAsyncInvocations);
         }
 
         [Fact]
@@ -254,7 +254,7 @@ namespace EntityFrameworkCore.Triggered.Transactions.Tests
             session.DiscoverChanges();
             session.RaiseAfterRollbackTriggers();
 
-            Assert.Equal(1, context.TriggerStub.AfterRollbackInvocations.Count);
+            Assert.Single(context.TriggerStub.AfterRollbackInvocations);
         }
 
         [Fact]
@@ -271,7 +271,7 @@ namespace EntityFrameworkCore.Triggered.Transactions.Tests
             session.DiscoverChanges();
             await session.RaiseAfterRollbackAsyncTriggers();
 
-            Assert.Equal(1, context.TriggerStub.AfterRollbackAsyncInvocations.Count);
+            Assert.Single(context.TriggerStub.AfterRollbackAsyncInvocations);
         }
 
         [Fact]
