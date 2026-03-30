@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <PackageId>EntityFrameworkCore.Triggered.Analyzers</PackageId>
+        <Description>Roslyn analyzers and code fixes to help migrate EntityFrameworkCore.Triggered triggers to the new sync/async interface pattern.</Description>
+        <DevelopmentDependency>true</DevelopmentDependency>
+        <NoPackageAnalysis>true</NoPackageAnalysis>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\EntityFrameworkCore.Triggered.Analyzers\EntityFrameworkCore.Triggered.Analyzers.csproj" PrivateAssets="all" />
+        <ProjectReference Include="..\EntityFrameworkCore.Triggered.Analyzers.CodeFixes\EntityFrameworkCore.Triggered.Analyzers.CodeFixes.csproj" PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="$(OutputPath)\EntityFrameworkCore.Triggered.Analyzers.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+        <None Include="$(OutputPath)\EntityFrameworkCore.Triggered.Analyzers.CodeFixes.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+
+</Project>
