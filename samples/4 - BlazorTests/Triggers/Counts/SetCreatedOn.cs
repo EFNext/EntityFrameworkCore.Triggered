@@ -5,9 +5,9 @@ using EntityFrameworkCore.Triggered;
 
 namespace BlazorTests.Triggers.Counts
 {
-    public class SetCreatedOn : IBeforeSaveTrigger<Count>
+    public class SetCreatedOn : IBeforeSaveAsyncTrigger<Count>
     {
-        public Task BeforeSave(ITriggerContext<Count> context, CancellationToken cancellationToken)
+        public Task BeforeSaveAsync(ITriggerContext<Count> context, CancellationToken cancellationToken)
         {
             context.Entity.CreatedOn = DateTime.UtcNow;
 

@@ -5,7 +5,7 @@ on:
   release:
     types:
       - published
-    
+
 env:
   # Stop wasting time caching packages
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
@@ -15,42 +15,33 @@ env:
   GITHUB_FEED: https://nuget.pkg.github.com/koenbeuk/
   GITHUB_USER: koenbeuk
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
+
 jobs:
   build:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        version: [1, 2, 3]
-        include:
-          - version: 1
-            configuration: ReleaseV1
-          - version: 2
-            configuration: ReleaseV2
-          - version: 3  
-            configuration: Release
-    runs-on:  ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Setup .NET Core
-        uses: actions/setup-dotnet@v1
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 6.0.x
-          include-prerelease: True
+          global-json-file: global.json
       - name: Install dependencies
-        run: dotnet restore EntityFrameworkCore.Triggered.sln -p:Configuration=${{ matrix.configuration }}
+        run: dotnet restore EntityFrameworkCore.Triggered.sln -p:Configuration=Release
       - name: Build
-        run: dotnet build --configuration ${{ matrix.configuration }} --no-restore EntityFrameworkCore.Triggered.sln
+        run: dotnet build --configuration Release --no-restore EntityFrameworkCore.Triggered.sln
       - name: Test
-        run: dotnet test --configuration ${{ matrix.configuration }} --verbosity normal EntityFrameworkCore.Triggered.sln
+        run: dotnet test --configuration Release --verbosity normal EntityFrameworkCore.Triggered.sln
       - name: Pack
         if: matrix.os == 'ubuntu-latest'
-        run: | 
-          dotnet pack -v normal --configuration ${{ matrix.configuration }} --include-symbols --include-source -p:PackageVersion=${{ matrix.version }}-pre-$GITHUB_RUN_ID -o nupkg EntityFrameworkCore.Triggered.Core.slnf
+        run: |
+          dotnet pack -v normal --configuration Release --include-symbols --include-source -p:PackageVersion=3-pre-$GITHUB_RUN_ID -o nupkg EntityFrameworkCore.Triggered.Core.slnf
       - name: Upload Artifact
         if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: nupkg
           path: ./nupkg/*.nupkg
@@ -59,29 +50,29 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on:  ${{ matrix.os }}
-    
+    runs-on: ${{ matrix.os }}
+
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Setup .NET Core
-        uses: actions/setup-dotnet@v1
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 6.0.x
-          include-prerelease: True
+          global-json-file: global.json
       - name: Install dependencies
         run: dotnet restore EntityFrameworkCore.Triggered.Samples.slnf
       - name: Build
-        run: dotnet build --configuration Release --no-restore  EntityFrameworkCore.Triggered.Samples.slnf
-        
+        run: dotnet build --configuration Release --no-restore EntityFrameworkCore.Triggered.Samples.slnf
+
   prerelease:
     needs: build
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - name: Download Artifact
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v4
         with:
           name: nupkg
+          path: nupkg
       - name: Push to GitHub Feed
         run: |
           for f in ./nupkg/*.nupkg

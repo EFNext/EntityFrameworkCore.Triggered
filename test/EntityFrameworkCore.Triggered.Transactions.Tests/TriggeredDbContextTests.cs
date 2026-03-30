@@ -53,7 +53,7 @@ namespace EntityFrameworkCore.Triggered.Transactions.Tests
 
             subject.RaiseBeforeCommitTriggers();
 
-            Assert.Equal(1, dbContext.TriggerStub.BeforeCommitInvocations.Count);
+            Assert.Single(dbContext.TriggerStub.BeforeCommitInvocations);
         }
 
 
@@ -72,7 +72,7 @@ namespace EntityFrameworkCore.Triggered.Transactions.Tests
 
             subject.RaiseAfterCommitTriggers();
 
-            Assert.Equal(1, dbContext.TriggerStub.AfterCommitInvocations.Count);
+            Assert.Single(dbContext.TriggerStub.AfterCommitInvocations);
         }
     }
 }

@@ -143,7 +143,7 @@ namespace EntityFrameworkCore.Triggered.Extensions.Tests
                 .AddAssemblyTriggers();
 
             // Ensure that we did not register the AbstractTrigger
-            Assert.Empty(serviceCollection.Where(x => x.ImplementationType == typeof(AbstractTrigger)));
+            Assert.DoesNotContain(serviceCollection, x => x.ImplementationType == typeof(AbstractTrigger));
         }
 
         [Theory]

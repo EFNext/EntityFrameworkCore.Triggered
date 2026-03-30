@@ -131,7 +131,7 @@ namespace EntityFrameworkCore.Triggered.Tests
 
             subject.SaveChanges();
 
-            Assert.Equal(1, subject.TriggerStub.BeforeSaveInvocations.Count);
+            Assert.Single(subject.TriggerStub.BeforeSaveInvocations);
         }
 
         [Fact]
@@ -163,7 +163,7 @@ namespace EntityFrameworkCore.Triggered.Tests
 
             await subject.SaveChangesAsync();
 
-            Assert.Equal(1, subject.TriggerStub.BeforeSaveInvocations.Count);
+            Assert.Single(subject.TriggerStub.BeforeSaveInvocations);
         }
 
         [Fact]

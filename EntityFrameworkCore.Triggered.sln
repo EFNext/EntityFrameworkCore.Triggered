@@ -4,8 +4,14 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.0.31710.8
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{EDFABD48-3C79-47AE-B84C-47CE2A52C20D}"
+	ProjectSection(SolutionItems) = preProject
+		src\Directory.Build.props = src\Directory.Build.props
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{0FAE4F6A-93BB-453C-8FB4-B24A9F30DA59}"
+	ProjectSection(SolutionItems) = preProject
+		test\Directory.Build.props = test\Directory.Build.props
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_Solution Items", "_Solution Items", "{CA7737C4-0D3C-4B81-B34C-B4812B54C018}"
 	ProjectSection(SolutionItems) = preProject
@@ -13,6 +19,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_Solution Items", "_Solutio
 		Directory.Build.props = Directory.Build.props
 		LICENSE.md = LICENSE.md
 		README.md = README.md
+		Directory.Packages.props = Directory.Packages.props
+		global.json = global.json
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EntityFrameworkCore.Triggered.Abstractions", "src\EntityFrameworkCore.Triggered.Abstractions\EntityFrameworkCore.Triggered.Abstractions.csproj", "{B338AEB6-4D18-4069-AE00-9A1E33C638F4}"
@@ -46,6 +54,14 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "3 - StudentManagerAspNetCore", "samples\3 - StudentManagerAspNetCore\3 - StudentManagerAspNetCore.csproj", "{6D1D3A38-523A-44A8-A3F9-B78E34706B37}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "4 - BlazorTests", "samples\4 - BlazorTests\4 - BlazorTests.csproj", "{C764B357-8ABE-483E-BA1D-EC05ED689691}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_Github", "_Github", "{BCBB4711-7968-44C0-81BD-C848FF4FBAB8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{46951DC8-925A-4542-99FC-2C2B3E00A997}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\build.yml = .github\workflows\build.yml
+		.github\workflows\release.yml = .github\workflows\release.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -244,6 +260,7 @@ Global
 		{6139FBAB-0224-42ED-8DAF-54ED1F3E8C5B} = {FB5C3BC0-5036-4DD6-85E2-E2B05ECAC40C}
 		{6D1D3A38-523A-44A8-A3F9-B78E34706B37} = {FB5C3BC0-5036-4DD6-85E2-E2B05ECAC40C}
 		{C764B357-8ABE-483E-BA1D-EC05ED689691} = {FB5C3BC0-5036-4DD6-85E2-E2B05ECAC40C}
+		{46951DC8-925A-4542-99FC-2C2B3E00A997} = {BCBB4711-7968-44C0-81BD-C848FF4FBAB8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {847A0017-23D6-4513-B78E-CAADBD836A7D}
