@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Reflection;
+using EntityFrameworkCore.Triggered.Extensions;
 using EntityFrameworkCore.Triggered.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,14 +25,20 @@ namespace Microsoft.EntityFrameworkCore
                 throw new ArgumentNullException(nameof(assemblies));
             }
 
-            var assemblyTypes = assemblies
-                .SelectMany(x => x.GetTypes())
-                .Where(x => x.IsClass)
-                .Where(x => !x.IsAbstract);
+            if (assemblies.Length == 0)
+            {
+                return builder;
+            }
+
+            var assemblyTypes = assemblies.SelectMany(TriggerTypeHelper.GetAssemblyConcreteClasses);
 
             foreach (var assemblyType in assemblyTypes)
             {
-                builder.AddTrigger(assemblyType, lifetime);
+                // Only register types that actually implement a known trigger interface
+                if (TriggerTypeHelper.GetTriggerInterfaces(assemblyType).Length > 0)
+                {
+                    builder.AddTrigger(assemblyType, lifetime);
+                }
             }
 
             return builder;

@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using EntityFrameworkCore.Triggered.Infrastructure.Internal;
-using EntityFrameworkCore.Triggered.Internal.Descriptors;
 
 namespace EntityFrameworkCore.Triggered.Internal
 {
@@ -12,6 +12,11 @@ namespace EntityFrameworkCore.Triggered.Internal
         readonly Func<Type, TTriggerTypeDescriptor> _triggerTypeDescriptorFactory;
 
         TTriggerTypeDescriptor[]? _resolvedDescriptors;
+
+        // Populated after the first resolution: only the descriptors that produced at least one
+        // trigger instance. null = not yet computed; empty array = computed, none were active.
+        // Written once (first-write-wins via CompareExchange) so no further synchronisation needed.
+        TTriggerTypeDescriptor[]? _activeDescriptors;
 
         public TriggerTypeRegistry(Type entityType, Func<Type, TTriggerTypeDescriptor> triggerTypeDescriptorFactory)
         {
@@ -28,7 +33,6 @@ namespace EntityFrameworkCore.Triggered.Internal
                 foreach (var interfaceType in type.GetInterfaces())
                 {
                     yield return interfaceType;
-
                 }
 
                 yield return type;
@@ -52,5 +56,20 @@ namespace EntityFrameworkCore.Triggered.Internal
 
             return _resolvedDescriptors;
         }
+
+        /// <summary>
+        /// Returns the subset of descriptors that produced at least one trigger instance during a
+        /// previous resolution, or <c>null</c> if this information has not yet been computed.
+        /// An empty array means a previous resolution confirmed that no triggers are registered.
+        /// </summary>
+        public TTriggerTypeDescriptor[]? GetActiveDescriptors()
+            => Volatile.Read(ref _activeDescriptors);
+
+        /// <summary>
+        /// Records the subset of descriptors that produced triggers during a resolution.
+        /// Only the first call has any effect (first-write-wins); subsequent calls are ignored.
+        /// </summary>
+        public void SetActiveDescriptors(TTriggerTypeDescriptor[] activeDescriptors)
+            => Interlocked.CompareExchange(ref _activeDescriptors, activeDescriptors, null);
     }
 }

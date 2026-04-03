@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EntityFrameworkCore.Triggered.Internal
@@ -33,18 +32,15 @@ namespace EntityFrameworkCore.Triggered.Internal
 
             // Alternatively, triggers may be registered with the extension configuration
             var instanceFactoryType = _instanceFactoryTypeCache.GetOrAdd(triggerType,
-                triggerType => typeof(ITriggerInstanceFactory<>).MakeGenericType(triggerType)
+                t => typeof(ITriggerInstanceFactory<>).MakeGenericType(t)
             );
 
-            var triggerServiceFactories = _internalServiceProvider.GetServices(instanceFactoryType);
-            if (triggerServiceFactories.Any())
+            // Iterate once — eliminates the former .Any() + foreach double-enumeration
+            foreach (var triggerServiceFactory in _internalServiceProvider.GetServices(instanceFactoryType))
             {
-                foreach (var triggerServiceFactory in triggerServiceFactories)
+                if (triggerServiceFactory is ITriggerInstanceFactory factory)
                 {
-                    if (triggerServiceFactory is not null)
-                    {
-                        yield return ((ITriggerInstanceFactory)triggerServiceFactory).Create(serviceProvider ?? _internalServiceProvider);
-                    }
+                    yield return factory.Create(serviceProvider ?? _internalServiceProvider);
                 }
             }
         }
