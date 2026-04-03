@@ -112,7 +112,7 @@ namespace EntityFrameworkCore.Triggered.Tests
 
             subject.RaiseBeforeSaveTriggers();
 
-            Assert.Equal(1, context.TriggerStub.BeforeSaveInvocations.Count);
+            Assert.Single(context.TriggerStub.BeforeSaveInvocations);
         }
 
         [Fact]
@@ -128,7 +128,7 @@ namespace EntityFrameworkCore.Triggered.Tests
 
             await subject.RaiseBeforeSaveAsyncTriggers();
 
-            Assert.Equal(1, context.TriggerStub.BeforeSaveAsyncInvocations.Count);
+            Assert.Single(context.TriggerStub.BeforeSaveAsyncInvocations);
         }
 
         [Fact]
@@ -173,7 +173,7 @@ namespace EntityFrameworkCore.Triggered.Tests
             subject.DiscoverChanges();
             subject.RaiseAfterSaveTriggers();
 
-            Assert.Equal(1, context.TriggerStub.AfterSaveInvocations.Count);
+            Assert.Single(context.TriggerStub.AfterSaveInvocations);
         }
 
         [Fact]
@@ -190,7 +190,7 @@ namespace EntityFrameworkCore.Triggered.Tests
             subject.DiscoverChanges();
             await subject.RaiseAfterSaveAsyncTriggers();
 
-            Assert.Equal(1, context.TriggerStub.AfterSaveAsyncInvocations.Count);
+            Assert.Single(context.TriggerStub.AfterSaveAsyncInvocations);
         }
 
         [Fact]
@@ -383,7 +383,7 @@ namespace EntityFrameworkCore.Triggered.Tests
             subject.DiscoverChanges();
             subject.RaiseAfterSaveFailedTriggers(new Exception());
 
-            Assert.Equal(1, context.TriggerStub.AfterSaveFailedInvocations.Count);
+            Assert.Single(context.TriggerStub.AfterSaveFailedInvocations);
         }
 
 
@@ -401,7 +401,7 @@ namespace EntityFrameworkCore.Triggered.Tests
             subject.DiscoverChanges();
             await subject.RaiseAfterSaveFailedAsyncTriggers(new Exception());
 
-            Assert.Equal(1, context.TriggerStub.AfterSaveFailedAsyncInvocations.Count);
+            Assert.Single(context.TriggerStub.AfterSaveFailedAsyncInvocations);
         }
 
         [Fact]
@@ -445,9 +445,9 @@ namespace EntityFrameworkCore.Triggered.Tests
                 subject.RaiseBeforeSaveTriggers();
             }
 
-            Assert.Equal(1, firstTrigger.BeforeSaveInvocations.Count);
-            Assert.Equal(1, secondTrigger.BeforeSaveInvocations.Count);
-            Assert.Equal(1, lastTrigger.BeforeSaveInvocations.Count);
+            Assert.Single(firstTrigger.BeforeSaveInvocations);
+            Assert.Single(secondTrigger.BeforeSaveInvocations);
+            Assert.Single(lastTrigger.BeforeSaveInvocations);
         }
 
         [Fact]
@@ -517,7 +517,7 @@ namespace EntityFrameworkCore.Triggered.Tests
             subject.RaiseBeforeSaveTriggers();
 
             // assert
-            Assert.Equal(0, context.TriggerStub.BeforeSaveInvocations.Count);
+            Assert.Empty(context.TriggerStub.BeforeSaveInvocations);
         }
     }
 }

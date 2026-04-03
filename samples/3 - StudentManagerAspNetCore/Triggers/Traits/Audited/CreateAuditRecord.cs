@@ -8,7 +8,7 @@ using StudentManager.Traits;
 
 namespace StudentManager.Triggers.Traits.Audited
 {
-    public class CreateAuditRecord : IBeforeSaveTrigger<IAudited>
+    public class CreateAuditRecord : IBeforeSaveAsyncTrigger<IAudited>
     {
         private readonly ApplicationDbContext _applicationContext;
 
@@ -17,7 +17,7 @@ namespace StudentManager.Triggers.Traits.Audited
             _applicationContext = applicationContext;
         }
 
-        public Task BeforeSave(ITriggerContext<IAudited> context, CancellationToken cancellationToken)
+        public Task BeforeSaveAsync(ITriggerContext<IAudited> context, CancellationToken cancellationToken)
         {
             var recordBuilder = new StringBuilder();
 

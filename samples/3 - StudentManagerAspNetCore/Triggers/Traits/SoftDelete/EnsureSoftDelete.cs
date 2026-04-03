@@ -6,7 +6,7 @@ using StudentManager.Traits;
 
 namespace StudentManager.Triggers.Traits.SoftDelete
 {
-    class EnsureSoftDelete : IBeforeSaveTrigger<ISoftDelete>
+    class EnsureSoftDelete : IBeforeSaveAsyncTrigger<ISoftDelete>
     {
         readonly ApplicationDbContext _applicationContext;
 
@@ -15,7 +15,7 @@ namespace StudentManager.Triggers.Traits.SoftDelete
             _applicationContext = applicationContext;
         }
 
-        public Task BeforeSave(ITriggerContext<ISoftDelete> context, CancellationToken cancellationToken)
+        public Task BeforeSaveAsync(ITriggerContext<ISoftDelete> context, CancellationToken cancellationToken)
         {
             if (context.ChangeType == ChangeType.Deleted)
             {

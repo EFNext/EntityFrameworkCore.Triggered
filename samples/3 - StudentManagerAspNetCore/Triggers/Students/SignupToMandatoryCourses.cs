@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace StudentManager.Triggers.Students
 {
-    public class SignupToMandatoryCourses : IBeforeSaveTrigger<Student>
+    public class SignupToMandatoryCourses : IBeforeSaveAsyncTrigger<Student>
     {
         readonly ApplicationDbContext _applicationContext;
 
@@ -15,7 +15,7 @@ namespace StudentManager.Triggers.Students
             _applicationContext = applicationContext;
         }
 
-        public async Task BeforeSave(ITriggerContext<Student> context, CancellationToken cancellationToken)
+        public async Task BeforeSaveAsync(ITriggerContext<Student> context, CancellationToken cancellationToken)
         {
             var mandatoryCourses = await _applicationContext.Courses
                 .Where(x => x.IsMandatory)

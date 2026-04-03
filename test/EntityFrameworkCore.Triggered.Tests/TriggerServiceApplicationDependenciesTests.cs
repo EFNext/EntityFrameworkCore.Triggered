@@ -43,7 +43,7 @@ namespace EntityFrameworkCore.Triggered.Tests
                 using var serviceScope = applicationServiceProvider.CreateScope();
                 var dbContext = serviceScope.ServiceProvider.GetRequiredService<TestDbContext>();
                 var triggerStub = serviceScope.ServiceProvider.GetRequiredService<IBeforeSaveTrigger<TestModel>>() as TriggerStub<TestModel>;
-                Assert.Equal(0, triggerStub.BeforeSaveInvocations.Count);
+                Assert.Empty(triggerStub.BeforeSaveInvocations);
 
                 dbContext.Add(new TestModel { });
                 dbContext.SaveChanges();
@@ -75,7 +75,7 @@ namespace EntityFrameworkCore.Triggered.Tests
 
             var triggerStub = serviceScope.ServiceProvider.GetRequiredService<IBeforeSaveTrigger<TestModel>>() as TriggerStub<TestModel>;
 
-            Assert.Equal(0, triggerStub.BeforeSaveInvocations.Count);
+            Assert.Empty(triggerStub.BeforeSaveInvocations);
 
         }
 
@@ -106,7 +106,7 @@ namespace EntityFrameworkCore.Triggered.Tests
 
             var triggerStub = scopedServiceProvider.GetRequiredService<IBeforeSaveTrigger<TestModel>>() as TriggerStub<TestModel>;
 
-            Assert.Equal(1, triggerStub.BeforeSaveInvocations.Count);
+            Assert.Single(triggerStub.BeforeSaveInvocations);
         }
 
 
@@ -137,7 +137,7 @@ namespace EntityFrameworkCore.Triggered.Tests
 
             var triggerStub = scopedServiceProvider.GetRequiredService<IBeforeSaveTrigger<TestModel>>() as TriggerStub<TestModel>;
 
-            Assert.Equal(1, triggerStub.BeforeSaveInvocations.Count);
+            Assert.Single(triggerStub.BeforeSaveInvocations);
         }
 
         [Fact]
@@ -169,7 +169,7 @@ namespace EntityFrameworkCore.Triggered.Tests
 
                 var triggerStub = scopedServiceProvider.GetRequiredService<IBeforeSaveTrigger<TestModel>>() as TriggerStub<TestModel>;
 
-                Assert.Equal(1, triggerStub.BeforeSaveInvocations.Count);
+                Assert.Single(triggerStub.BeforeSaveInvocations);
             }
 
             SimulateRequest();
