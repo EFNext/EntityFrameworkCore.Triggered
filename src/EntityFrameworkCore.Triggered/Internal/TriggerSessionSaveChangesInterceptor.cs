@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 namespace EntityFrameworkCore.Triggered.Internal
 {
 #pragma warning disable CS0618 // Type or member is obsolete (TriggeredDbContext with EFCore5)
-    public class TriggerSessionSaveChangesInterceptor : ISaveChangesInterceptor
+    public class TriggerSessionSaveChangesInterceptor : ISaveChangesInterceptor, IResettableService
     {
 #if DEBUG
         DbContext? _capturedDbContext;
@@ -170,29 +170,94 @@ namespace EntityFrameworkCore.Triggered.Internal
 
         public void SaveChangesFailed(DbContextErrorEventData eventData)
         {
-            Debug.Assert(_triggerSession != null);
-
-            _triggerSession.RaiseAfterSaveFailedStartingTriggers(eventData.Exception);
-            _triggerSession.RaiseAfterSaveFailedTriggers(eventData.Exception);
-            _triggerSession.RaiseAfterSaveFailedCompletedTriggers(eventData.Exception);
-
-            DelistTriggerSession(eventData);
+            try
+            {
+                RaiseAfterSaveFailedTriggers(eventData.Exception);
+            }
+            finally
+            {
+                DelistTriggerSession(eventData);
+            }
         }
 
         public async Task SaveChangesFailedAsync(DbContextErrorEventData eventData, CancellationToken cancellationToken = default)
         {
+            try
+            {
+                await RaiseAfterSaveFailedAsyncTriggers(eventData.Exception, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                DelistTriggerSession(eventData);
+            }
+        }
+
+        public InterceptionResult ThrowingConcurrencyException(ConcurrencyExceptionEventData eventData, InterceptionResult result)
+        {
+            if (!result.IsSuppressed)
+            {
+                SaveChangesFailed(eventData);
+            }
+
+            return result;
+        }
+
+        public async ValueTask<InterceptionResult> ThrowingConcurrencyExceptionAsync(ConcurrencyExceptionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
+        {
+            if (!result.IsSuppressed)
+            {
+                await SaveChangesFailedAsync(eventData, cancellationToken).ConfigureAwait(false);
+            }
+
+            return result;
+        }
+
+        public void SaveChangesCanceled(DbContextEventData eventData)
+            => DelistTriggerSession(eventData);
+
+        public Task SaveChangesCanceledAsync(DbContextEventData eventData, CancellationToken cancellationToken = default)
+        {
+            DelistTriggerSession(eventData);
+            return Task.CompletedTask;
+        }
+
+        public void ResetState()
+        {
+            _triggerSession?.Dispose();
+            _triggerSession = null;
+            _parallelSaveChangesCount = 0;
+#if DEBUG
+            _capturedDbContext = null;
+#endif
+        }
+
+        public Task ResetStateAsync(CancellationToken cancellationToken = default)
+        {
+            ResetState();
+            return Task.CompletedTask;
+        }
+
+        private void RaiseAfterSaveFailedTriggers(Exception exception)
+        {
             Debug.Assert(_triggerSession != null);
 
-            _triggerSession.RaiseAfterSaveFailedStartingTriggers(eventData.Exception);
-            await _triggerSession.RaiseAfterSaveFailedStartingAsyncTriggers(eventData.Exception, cancellationToken).ConfigureAwait(false);
-                
-            _triggerSession.RaiseAfterSaveFailedTriggers(eventData.Exception);
-            await _triggerSession.RaiseAfterSaveFailedAsyncTriggers(eventData.Exception, cancellationToken).ConfigureAwait(false);
-                
-            _triggerSession.RaiseAfterSaveFailedCompletedTriggers(eventData.Exception);
-            await _triggerSession.RaiseAfterSaveFailedCompletedAsyncTriggers(eventData.Exception, cancellationToken).ConfigureAwait(false);
+            _triggerSession.RaiseAfterSaveFailedStartingTriggers(exception);
+            _triggerSession.RaiseAfterSaveFailedTriggers(exception);
+            _triggerSession.RaiseAfterSaveFailedCompletedTriggers(exception);
+        }
 
-            DelistTriggerSession(eventData);
+        private async Task RaiseAfterSaveFailedAsyncTriggers(Exception exception, CancellationToken cancellationToken)
+        {
+            Debug.Assert(_triggerSession != null);
+
+            _triggerSession.RaiseAfterSaveFailedStartingTriggers(exception);
+            await _triggerSession.RaiseAfterSaveFailedStartingAsyncTriggers(exception, cancellationToken).ConfigureAwait(false);
+
+            _triggerSession.RaiseAfterSaveFailedTriggers(exception);
+            await _triggerSession.RaiseAfterSaveFailedAsyncTriggers(exception, cancellationToken).ConfigureAwait(false);
+
+            _triggerSession.RaiseAfterSaveFailedCompletedTriggers(exception);
+            await _triggerSession.RaiseAfterSaveFailedCompletedAsyncTriggers(exception, cancellationToken).ConfigureAwait(false);
         }
     }
 #pragma warning restore CS0618 // Type or member is obsolete

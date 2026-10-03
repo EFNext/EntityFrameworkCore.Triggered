@@ -159,7 +159,9 @@ namespace EntityFrameworkCore.Triggered.Infrastructure.Internal
 
             services.AddScoped<TriggerFactory>();
 
-            services.TryAddScoped<IInterceptor, TriggerSessionSaveChangesInterceptor>();
+            services.AddScoped<TriggerSessionSaveChangesInterceptor>();
+            services.AddScoped<IResettableService>(serviceProvider => serviceProvider.GetRequiredService<TriggerSessionSaveChangesInterceptor>());
+            services.TryAddScoped<IInterceptor>(serviceProvider => serviceProvider.GetRequiredService<TriggerSessionSaveChangesInterceptor>());
 
             services.Configure<TriggerOptions>(triggerServiceOptions => {
                 triggerServiceOptions.MaxCascadeCycles = _maxCascadeCycles;
