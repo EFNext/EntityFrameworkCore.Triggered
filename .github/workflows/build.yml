@@ -12,8 +12,7 @@ env:
   # Disable sending usage data to Microsoft
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   # GitHub Packages Feed settings
-  GITHUB_FEED: https://nuget.pkg.github.com/koenbeuk/
-  GITHUB_USER: koenbeuk
+  GITHUB_FEED: https://nuget.pkg.github.com/${{ github.repository_owner }}/
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
