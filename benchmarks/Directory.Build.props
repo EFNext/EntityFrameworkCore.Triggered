@@ -2,5 +2,6 @@
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <LangVersion>8.0</LangVersion>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 </Project>

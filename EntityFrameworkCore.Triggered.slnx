@@ -1,0 +1,52 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/EntityFrameworkCore.Triggered.Benchmarks/EntityFrameworkCore.Triggered.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/analyzers/">
+    <Project Path="EntityFrameworkCore.Triggered.Analyzers/EntityFrameworkCore.Triggered.Analyzers.CodeFixes/EntityFrameworkCore.Triggered.Analyzers.CodeFixes.csproj" />
+    <Project Path="EntityFrameworkCore.Triggered.Analyzers/EntityFrameworkCore.Triggered.Analyzers.Package/EntityFrameworkCore.Triggered.Analyzers.Package.csproj" />
+    <Project Path="EntityFrameworkCore.Triggered.Analyzers/EntityFrameworkCore.Triggered.Analyzers.Test/EntityFrameworkCore.Triggered.Analyzers.Test.csproj" />
+    <Project Path="EntityFrameworkCore.Triggered.Analyzers/EntityFrameworkCore.Triggered.Analyzers/EntityFrameworkCore.Triggered.Analyzers.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/1 - HelloWorld/1 - HelloWorld.csproj" />
+    <Project Path="samples/2 - PrimarySchool/2 - PrimarySchool.csproj" />
+    <Project Path="samples/3 - StudentManagerAspNetCore/3 - StudentManagerAspNetCore.csproj" />
+    <Project Path="samples/4 - BlazorTests/4 - BlazorTests.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <File Path="src/Directory.Build.props" />
+    <Project Path="src/EntityFrameworkCore.Triggered.Abstractions/EntityFrameworkCore.Triggered.Abstractions.csproj" />
+    <Project Path="src/EntityFrameworkCore.Triggered.Extensions/EntityFrameworkCore.Triggered.Extensions.csproj" />
+    <Project Path="src/EntityFrameworkCore.Triggered.Transactions.Abstractions/EntityFrameworkCore.Triggered.Transactions.Abstractions.csproj" />
+    <Project Path="src/EntityFrameworkCore.Triggered.Transactions/EntityFrameworkCore.Triggered.Transactions.csproj" />
+    <Project Path="src/EntityFrameworkCore.Triggered/EntityFrameworkCore.Triggered.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <File Path="test/Directory.Build.props" />
+    <Project Path="test/EntityFrameworkCore.Triggered.Extensions.Tests/EntityFrameworkCore.Triggered.Extensions.Tests.csproj" />
+    <Project Path="test/EntityFrameworkCore.Triggered.IntegrationTests/EntityFrameworkCore.Triggered.IntegrationTests.csproj" />
+    <Project Path="test/EntityFrameworkCore.Triggered.Tests/EntityFrameworkCore.Triggered.Tests.csproj" />
+    <Project Path="test/EntityFrameworkCore.Triggered.Transactions.Tests/EntityFrameworkCore.Triggered.Transactions.Tests.csproj" />
+  </Folder>
+  <Folder Name="/_Github/" />
+  <Folder Name="/_Github/workflows/">
+    <File Path=".github/workflows/build.yml" />
+    <File Path=".github/workflows/release.yml" />
+  </Folder>
+  <Folder Name="/_Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="LICENSE.md" />
+    <File Path="README.md" />
+  </Folder>
+</Solution>

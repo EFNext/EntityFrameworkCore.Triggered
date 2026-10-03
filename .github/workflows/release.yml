@@ -33,7 +33,7 @@ jobs:
           echo Version: $VERSION
           VERSION="${VERSION:1}"
           echo Clean Version: $VERSION
-          dotnet pack -v normal -c Release --include-symbols --include-source -p:PackageVersion=$VERSION -o nupkg EntityFrameworkCore.Triggered.Core.slnf
+          dotnet pack -v normal -c Release --include-symbols --include-source -p:PackageVersion=$VERSION -o nupkg EntityFrameworkCore.Triggered.slnx
       - name: Push to GitHub Feed
         run: |
           for f in ./nupkg/*.nupkg
