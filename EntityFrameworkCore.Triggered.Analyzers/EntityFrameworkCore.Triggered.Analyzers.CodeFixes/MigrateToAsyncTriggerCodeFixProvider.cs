@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Editing;
 
 namespace EntityFrameworkCore.Triggered.Analyzers.CodeFixes;
 
@@ -22,120 +23,103 @@ public sealed class MigrateToAsyncTriggerCodeFixProvider : CodeFixProvider
     public override async Task RegisterCodeFixesAsync(CodeFixContext context)
     {
         var diagnostic = context.Diagnostics.First();
-        var properties = diagnostic.Properties;
+        var document = context.Document;
 
-        if (!properties.TryGetValue("AsyncInterfaceShortName", out var asyncInterfaceName) ||
-            !properties.TryGetValue("SyncInterfaceShortName", out var syncInterfaceName) ||
-            !properties.TryGetValue("SyncMethodName", out var syncMethodName) ||
-            !properties.TryGetValue("AsyncMethodName", out var asyncMethodName))
+        var root = await document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
+        var semanticModel = await document.GetSemanticModelAsync(context.CancellationToken).ConfigureAwait(false);
+        if (root is null || semanticModel is null)
             return;
 
-        var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
-        if (root == null) return;
+        var methodDeclaration = root.FindNode(diagnostic.Location.SourceSpan).FirstAncestorOrSelf<MethodDeclarationSyntax>();
+        if (methodDeclaration is null || !TriggerMigrationMatcher.TryMatch(methodDeclaration, semanticModel, context.CancellationToken, out var match))
+            return;
 
-        var node = root.FindNode(diagnostic.Location.SourceSpan);
-        var methodDeclaration = node.FirstAncestorOrSelf<MethodDeclarationSyntax>();
-        if (methodDeclaration == null) return;
+        if (methodDeclaration.ExplicitInterfaceSpecifier is { } specifier && GetRightmostIdentifier(specifier.Name) != match.Entry.SyncInterfaceShortName)
+            return;
 
-        var classDeclaration = methodDeclaration.FirstAncestorOrSelf<ClassDeclarationSyntax>();
-        if (classDeclaration == null) return;
+        var baseType = await FindDeclaringBaseTypeAsync(document.Project.Solution, match, context.CancellationToken).ConfigureAwait(false);
+
+        // The interface is inherited from a base class or written through an alias; renaming it here is not safe
+        if (baseType is null)
+            return;
 
         context.RegisterCodeFix(
             CodeAction.Create(
-                title: $"Migrate to {asyncInterfaceName}",
-                createChangedDocument: ct => MigrateToAsync(context.Document, root, classDeclaration, methodDeclaration, syncInterfaceName!, asyncInterfaceName!, syncMethodName!, asyncMethodName!, ct),
+                title: $"Migrate to {match.Entry.AsyncInterfaceShortName}",
+                createChangedSolution: ct => MigrateToAsyncAsync(document, methodDeclaration, baseType.Value.Document, baseType.Value.Node, match.Entry, ct),
                 equivalenceKey: "MigrateToAsyncTrigger"),
             diagnostic);
     }
 
-    private static Task<Document> MigrateToAsync(
-        Document document,
-        SyntaxNode root,
-        ClassDeclarationSyntax classDeclaration,
+    private static async Task<(Document Document, BaseTypeSyntax Node)?> FindDeclaringBaseTypeAsync(Solution solution, TriggerMigrationMatch match, CancellationToken cancellationToken)
+    {
+        foreach (var syntaxReference in match.Method.ContainingType.DeclaringSyntaxReferences)
+        {
+            if (await syntaxReference.GetSyntaxAsync(cancellationToken).ConfigureAwait(false) is not TypeDeclarationSyntax { BaseList: { } baseList })
+                continue;
+
+            var document = solution.GetDocument(baseList.SyntaxTree);
+            var semanticModel = document is null ? null : await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+            if (semanticModel is null)
+                continue;
+
+            foreach (var baseType in baseList.Types)
+            {
+                if (SymbolEqualityComparer.Default.Equals(semanticModel.GetTypeInfo(baseType.Type, cancellationToken).Type, match.TriggerInterface)
+                    && GetRightmostIdentifier(baseType.Type) == match.Entry.SyncInterfaceShortName)
+                {
+                    return (document!, baseType);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static async Task<Solution> MigrateToAsyncAsync(
+        Document methodDocument,
         MethodDeclarationSyntax methodDeclaration,
-        string syncInterfaceName,
-        string asyncInterfaceName,
-        string syncMethodName,
-        string asyncMethodName,
+        Document baseTypeDocument,
+        BaseTypeSyntax baseType,
+        TriggerMappingEntry entry,
         CancellationToken cancellationToken)
     {
-        var newRoot = root;
+        var editor = new SolutionEditor(methodDocument.Project.Solution);
 
-        // Replace interface name in base list
-        if (classDeclaration.BaseList != null)
+        var baseTypeEditor = await editor.GetDocumentEditorAsync(baseTypeDocument.Id, cancellationToken).ConfigureAwait(false);
+        baseTypeEditor.ReplaceNode(baseType.Type, RenameRightmostIdentifier(baseType.Type, entry.AsyncInterfaceShortName));
+
+        var newMethod = methodDeclaration.WithIdentifier(
+            SyntaxFactory.Identifier(entry.AsyncMethodName).WithTriviaFrom(methodDeclaration.Identifier));
+
+        if (newMethod.ExplicitInterfaceSpecifier is { } specifier)
         {
-            var newBaseList = classDeclaration.BaseList;
-            foreach (var baseType in classDeclaration.BaseList.Types)
-            {
-                var typeName = GetBaseTypeName(baseType);
-                if (typeName == syncInterfaceName)
-                {
-                    var newBaseType = ReplaceInterfaceName(baseType, syncInterfaceName, asyncInterfaceName);
-                    newBaseList = newBaseList.ReplaceNode(baseType, newBaseType);
-                }
-            }
-
-            if (newBaseList != classDeclaration.BaseList)
-            {
-                newRoot = newRoot.ReplaceNode(classDeclaration.BaseList, newBaseList);
-            }
+            newMethod = newMethod.WithExplicitInterfaceSpecifier(
+                specifier.WithName((NameSyntax)RenameRightmostIdentifier(specifier.Name, entry.AsyncInterfaceShortName)));
         }
 
-        // Find the method again in the updated tree
-        var updatedMethod = newRoot.FindNode(methodDeclaration.Identifier.Span)
-            .FirstAncestorOrSelf<MethodDeclarationSyntax>();
+        var methodEditor = await editor.GetDocumentEditorAsync(methodDocument.Id, cancellationToken).ConfigureAwait(false);
+        methodEditor.ReplaceNode(methodDeclaration, newMethod);
 
-        if (updatedMethod != null && updatedMethod.Identifier.Text == syncMethodName)
-        {
-            var newMethod = updatedMethod.WithIdentifier(
-                SyntaxFactory.Identifier(asyncMethodName)
-                    .WithTriviaFrom(updatedMethod.Identifier));
-            newRoot = newRoot.ReplaceNode(updatedMethod, newMethod);
-        }
-
-        return Task.FromResult(document.WithSyntaxRoot(newRoot));
+        return editor.GetChangedSolution();
     }
 
-    private static string? GetBaseTypeName(BaseTypeSyntax baseType)
+    private static string? GetRightmostIdentifier(TypeSyntax type) => type switch
     {
-        return baseType.Type switch
-        {
-            SimpleNameSyntax simple => simple.Identifier.Text,
-            QualifiedNameSyntax qualified => qualified.Right.Identifier.Text,
-            _ => null
-        };
-    }
+        SimpleNameSyntax simple => simple.Identifier.ValueText,
+        QualifiedNameSyntax qualified => qualified.Right.Identifier.ValueText,
+        AliasQualifiedNameSyntax aliasQualified => aliasQualified.Name.Identifier.ValueText,
+        _ => null
+    };
 
-    private static BaseTypeSyntax ReplaceInterfaceName(BaseTypeSyntax baseType, string oldName, string newName)
+    private static TypeSyntax RenameRightmostIdentifier(TypeSyntax type, string newName) => type switch
     {
-        switch (baseType.Type)
-        {
-            case GenericNameSyntax generic when generic.Identifier.Text == oldName:
-                var newGeneric = generic.WithIdentifier(
-                    SyntaxFactory.Identifier(newName).WithTriviaFrom(generic.Identifier));
-                return baseType.WithType(newGeneric);
+        SimpleNameSyntax simple => RenameSimpleName(simple, newName),
+        QualifiedNameSyntax qualified => qualified.WithRight(RenameSimpleName(qualified.Right, newName)),
+        AliasQualifiedNameSyntax aliasQualified => aliasQualified.WithName(RenameSimpleName(aliasQualified.Name, newName)),
+        _ => type
+    };
 
-            case SimpleNameSyntax simple when simple.Identifier.Text == oldName:
-                var newSimple = SyntaxFactory.IdentifierName(
-                    SyntaxFactory.Identifier(newName).WithTriviaFrom(simple.Identifier));
-                return baseType.WithType(newSimple);
-
-            case QualifiedNameSyntax qualified when qualified.Right.Identifier.Text == oldName:
-                SimpleNameSyntax newRight;
-                if (qualified.Right is GenericNameSyntax rightGeneric)
-                {
-                    newRight = rightGeneric.WithIdentifier(
-                        SyntaxFactory.Identifier(newName).WithTriviaFrom(rightGeneric.Identifier));
-                }
-                else
-                {
-                    newRight = SyntaxFactory.IdentifierName(
-                        SyntaxFactory.Identifier(newName).WithTriviaFrom(qualified.Right.Identifier));
-                }
-                return baseType.WithType(qualified.WithRight(newRight));
-
-            default:
-                return baseType;
-        }
-    }
+    private static SimpleNameSyntax RenameSimpleName(SimpleNameSyntax name, string newName)
+        => name.WithIdentifier(SyntaxFactory.Identifier(newName).WithTriviaFrom(name.Identifier));
 }

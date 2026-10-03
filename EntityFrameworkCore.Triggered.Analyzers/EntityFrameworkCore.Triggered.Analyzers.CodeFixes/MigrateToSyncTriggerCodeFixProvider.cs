@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Composition;
 using System.Linq;
@@ -22,116 +23,141 @@ public sealed class MigrateToSyncTriggerCodeFixProvider : CodeFixProvider
     public override async Task RegisterCodeFixesAsync(CodeFixContext context)
     {
         var diagnostic = context.Diagnostics.First();
-        var properties = diagnostic.Properties;
-
-        if (!properties.TryGetValue("SyncInterfaceShortName", out var syncInterfaceName) ||
-            !properties.TryGetValue("SyncMethodName", out var syncMethodName))
-            return;
 
         var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
-        if (root == null) return;
+        var semanticModel = await context.Document.GetSemanticModelAsync(context.CancellationToken).ConfigureAwait(false);
+        if (root is null || semanticModel is null)
+            return;
 
-        var node = root.FindNode(diagnostic.Location.SourceSpan);
-        var methodDeclaration = node.FirstAncestorOrSelf<MethodDeclarationSyntax>();
-        if (methodDeclaration == null) return;
+        var methodDeclaration = root.FindNode(diagnostic.Location.SourceSpan).FirstAncestorOrSelf<MethodDeclarationSyntax>();
+        if (methodDeclaration is null || !TriggerMigrationMatcher.TryMatch(methodDeclaration, semanticModel, context.CancellationToken, out var match))
+            return;
+
+        var completedTaskReturns = new List<ReturnStatementSyntax>();
+        if (!CanConvertToSync(methodDeclaration, match.Method, semanticModel, completedTaskReturns, context.CancellationToken))
+            return;
 
         context.RegisterCodeFix(
             CodeAction.Create(
-                title: $"Migrate to sync {syncInterfaceName}",
-                createChangedDocument: ct => MigrateToSync(context.Document, root, methodDeclaration, ct),
+                title: $"Convert to sync {match.Entry.SyncInterfaceShortName}",
+                createChangedDocument: _ => Task.FromResult(context.Document.WithSyntaxRoot(
+                    root.ReplaceNode(methodDeclaration, ConvertToSync(methodDeclaration, completedTaskReturns, semanticModel)))),
                 equivalenceKey: "MigrateToSyncTrigger"),
             diagnostic);
     }
 
-    private static Task<Document> MigrateToSync(
-        Document document,
-        SyntaxNode root,
-        MethodDeclarationSyntax methodDeclaration,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// A method can only be converted when dropping the <c>Task</c> and the <c>CancellationToken</c> cannot change its behavior:
+    /// it doesn't await anything itself, never uses the token, and only ever returns an already-completed task.
+    /// </summary>
+    private static bool CanConvertToSync(MethodDeclarationSyntax declaration, IMethodSymbol method, SemanticModel semanticModel, List<ReturnStatementSyntax> completedTaskReturns, CancellationToken cancellationToken)
     {
-        var newMethod = methodDeclaration;
+        SyntaxNode? body = (SyntaxNode?)declaration.Body ?? declaration.ExpressionBody;
+        if (body is null)
+            return false;
 
-        // Change return type from Task to void
-        newMethod = newMethod.WithReturnType(
-            SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword))
-                .WithTriviaFrom(methodDeclaration.ReturnType));
+        var cancellationTokenParameter = method.Parameters[method.Parameters.Length - 1];
+        var usesCancellationToken = body.DescendantNodes()
+            .OfType<IdentifierNameSyntax>()
+            .Any(identifier => identifier.Identifier.ValueText == cancellationTokenParameter.Name
+                && SymbolEqualityComparer.Default.Equals(semanticModel.GetSymbolInfo(identifier, cancellationToken).Symbol, cancellationTokenParameter));
 
-        // Remove CancellationToken parameter
-        var parameters = newMethod.ParameterList.Parameters;
-        var filteredParameters = parameters.Where(p =>
+        if (usesCancellationToken)
+            return false;
+
+        var ownNodes = body.DescendantNodesAndSelf(node => node == body || !IsNestedFunction(node)).ToList();
+
+        if (ownNodes.Any(IsAwait))
+            return false;
+
+        if (method.IsAsync)
+            return true;
+
+        if (declaration.ExpressionBody is { } expressionBody)
+            return expressionBody.Expression is ThrowExpressionSyntax || IsCompletedTask(expressionBody.Expression, semanticModel, cancellationToken);
+
+        foreach (var returnStatement in ownNodes.OfType<ReturnStatementSyntax>())
         {
-            var typeName = p.Type?.ToString();
-            return typeName != "CancellationToken" && typeName != "System.Threading.CancellationToken";
-        }).ToArray();
+            if (returnStatement.Expression is null || !IsCompletedTask(returnStatement.Expression, semanticModel, cancellationToken))
+                return false;
 
-        newMethod = newMethod.WithParameterList(
-            SyntaxFactory.ParameterList(SyntaxFactory.SeparatedList(filteredParameters))
-                .WithTriviaFrom(newMethod.ParameterList));
-
-        // Remove async modifier if present
-        if (newMethod.Modifiers.Any(SyntaxKind.AsyncKeyword))
-        {
-            var newModifiers = SyntaxFactory.TokenList(
-                newMethod.Modifiers.Where(m => !m.IsKind(SyntaxKind.AsyncKeyword)));
-            newMethod = newMethod.WithModifiers(newModifiers);
+            completedTaskReturns.Add(returnStatement);
         }
 
-        // Replace return Task.CompletedTask / return Task.FromResult(...) with plain return
-        if (newMethod.Body != null)
-        {
-            var newBody = RewriteReturnStatements(newMethod.Body);
-            newMethod = newMethod.WithBody(newBody);
-        }
-        else if (newMethod.ExpressionBody != null)
-        {
-            // Handle expression body: Task.CompletedTask => remove expression body, add empty body
-            var exprText = newMethod.ExpressionBody.Expression.ToString();
-            if (exprText.EndsWith("Task.CompletedTask") || exprText.Contains("Task.FromResult"))
-            {
-                newMethod = newMethod
-                    .WithExpressionBody(null)
-                    .WithSemicolonToken(SyntaxFactory.MissingToken(SyntaxKind.SemicolonToken))
-                    .WithBody(SyntaxFactory.Block());
-            }
-        }
-
-        var newRoot = root.ReplaceNode(methodDeclaration, newMethod);
-        return Task.FromResult(document.WithSyntaxRoot(newRoot));
+        return true;
     }
 
-    private static BlockSyntax RewriteReturnStatements(BlockSyntax body)
+    private static MethodDeclarationSyntax ConvertToSync(MethodDeclarationSyntax declaration, IReadOnlyCollection<ReturnStatementSyntax> completedTaskReturns, SemanticModel semanticModel)
     {
-        var rewriter = new ReturnStatementRewriter();
-        return (BlockSyntax)rewriter.Visit(body);
+        var newMethod = declaration.ReplaceNodes(
+            completedTaskReturns,
+            (original, _) => SyntaxFactory.ReturnStatement().WithTriviaFrom(original));
+
+        newMethod = newMethod
+            .WithReturnType(SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword)).WithTriviaFrom(declaration.ReturnType))
+            .WithParameterList(newMethod.ParameterList.WithParameters(newMethod.ParameterList.Parameters.RemoveAt(newMethod.ParameterList.Parameters.Count - 1)));
+
+        var asyncModifier = newMethod.Modifiers.FirstOrDefault(modifier => modifier.IsKind(SyntaxKind.AsyncKeyword));
+        if (asyncModifier != default)
+        {
+            newMethod = newMethod.WithModifiers(newMethod.Modifiers.Remove(asyncModifier));
+            if (newMethod.Modifiers.Count == 0)
+                newMethod = newMethod.WithReturnType(newMethod.ReturnType.WithLeadingTrivia(asyncModifier.LeadingTrivia));
+        }
+
+        if (declaration.ExpressionBody is { } expressionBody && IsCompletedTask(expressionBody.Expression, semanticModel, CancellationToken.None))
+        {
+            var endOfLine = declaration.DescendantTrivia().FirstOrDefault(trivia => trivia.IsKind(SyntaxKind.EndOfLineTrivia));
+            if (endOfLine == default)
+                endOfLine = SyntaxFactory.ElasticCarriageReturnLineFeed;
+
+            var indentation = declaration.GetLeadingTrivia().LastOrDefault(trivia => trivia.IsKind(SyntaxKind.WhitespaceTrivia));
+            var braceLeadingTrivia = indentation == default ? SyntaxFactory.TriviaList() : SyntaxFactory.TriviaList(indentation);
+
+            var block = SyntaxFactory.Block(
+                SyntaxFactory.Token(braceLeadingTrivia, SyntaxKind.OpenBraceToken, SyntaxFactory.TriviaList(endOfLine)),
+                default,
+                SyntaxFactory.Token(braceLeadingTrivia, SyntaxKind.CloseBraceToken, newMethod.SemicolonToken.TrailingTrivia));
+
+            newMethod = newMethod
+                .WithParameterList(newMethod.ParameterList.WithTrailingTrivia(endOfLine))
+                .WithExpressionBody(null)
+                .WithSemicolonToken(default)
+                .WithBody(block);
+        }
+
+        if (newMethod.Body is { Statements: { Count: > 0 } statements } body && statements.Last() is ReturnStatementSyntax { Expression: null } trailingReturn)
+        {
+            newMethod = newMethod.WithBody(body.WithStatements(statements.Remove(trailingReturn)));
+        }
+
+        return newMethod;
     }
 
-    private sealed class ReturnStatementRewriter : CSharpSyntaxRewriter
+    private static bool IsNestedFunction(SyntaxNode node)
+        => node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax;
+
+    private static bool IsAwait(SyntaxNode node) => node switch
     {
-        public override SyntaxNode? VisitReturnStatement(ReturnStatementSyntax node)
+        AwaitExpressionSyntax => true,
+        CommonForEachStatementSyntax forEach => forEach.AwaitKeyword != default,
+        UsingStatementSyntax usingStatement => usingStatement.AwaitKeyword != default,
+        LocalDeclarationStatementSyntax localDeclaration => localDeclaration.AwaitKeyword != default,
+        _ => false
+    };
+
+    private static bool IsCompletedTask(ExpressionSyntax expression, SemanticModel semanticModel, CancellationToken cancellationToken)
+    {
+        var symbol = semanticModel.GetSymbolInfo(expression, cancellationToken).Symbol;
+        if (symbol?.ContainingType is not { Name: "Task", ContainingNamespace: { Name: "Tasks", ContainingNamespace: { Name: "Threading", ContainingNamespace.Name: "System" } } })
+            return false;
+
+        return symbol switch
         {
-            if (node.Expression == null)
-                return base.VisitReturnStatement(node);
-
-            var exprText = node.Expression.ToString();
-
-            // return Task.CompletedTask; / return System.Threading.Tasks.Task.CompletedTask; => return;
-            if (exprText.EndsWith("Task.CompletedTask"))
-            {
-                return SyntaxFactory.ReturnStatement()
-                    .WithLeadingTrivia(node.GetLeadingTrivia())
-                    .WithTrailingTrivia(node.GetTrailingTrivia());
-            }
-
-            // return Task.FromResult(...); => return;
-            if (node.Expression is InvocationExpressionSyntax invocation &&
-                invocation.Expression.ToString().EndsWith("Task.FromResult"))
-            {
-                return SyntaxFactory.ReturnStatement()
-                    .WithLeadingTrivia(node.GetLeadingTrivia())
-                    .WithTrailingTrivia(node.GetTrailingTrivia());
-            }
-
-            return base.VisitReturnStatement(node);
-        }
+            IPropertySymbol { Name: "CompletedTask" } => true,
+            IMethodSymbol { Name: "FromResult" } when expression is InvocationExpressionSyntax { ArgumentList.Arguments: { Count: 1 } arguments } =>
+                arguments[0].Expression is LiteralExpressionSyntax or DefaultExpressionSyntax,
+            _ => false
+        };
     }
 }

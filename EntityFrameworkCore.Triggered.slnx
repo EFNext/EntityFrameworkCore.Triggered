@@ -11,7 +11,6 @@
   </Folder>
   <Folder Name="/analyzers/">
     <Project Path="EntityFrameworkCore.Triggered.Analyzers/EntityFrameworkCore.Triggered.Analyzers.CodeFixes/EntityFrameworkCore.Triggered.Analyzers.CodeFixes.csproj" />
-    <Project Path="EntityFrameworkCore.Triggered.Analyzers/EntityFrameworkCore.Triggered.Analyzers.Package/EntityFrameworkCore.Triggered.Analyzers.Package.csproj" />
     <Project Path="EntityFrameworkCore.Triggered.Analyzers/EntityFrameworkCore.Triggered.Analyzers.Test/EntityFrameworkCore.Triggered.Analyzers.Test.csproj" />
     <Project Path="EntityFrameworkCore.Triggered.Analyzers/EntityFrameworkCore.Triggered.Analyzers/EntityFrameworkCore.Triggered.Analyzers.csproj" />
   </Folder>

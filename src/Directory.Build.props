@@ -15,6 +15,12 @@
     <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
   </PropertyGroup>
 
+  <ItemDefinitionGroup>
+    <ProjectReference>
+      <PrivateAssets>none</PrivateAssets>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+
   <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>

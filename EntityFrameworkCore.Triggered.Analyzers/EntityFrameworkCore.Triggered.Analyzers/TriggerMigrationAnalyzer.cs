@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
-using System.Linq;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace EntityFrameworkCore.Triggered.Analyzers;
@@ -15,64 +16,21 @@ public sealed class TriggerMigrationAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSymbolAction(AnalyzeNamedType, SymbolKind.NamedType);
+        context.RegisterSyntaxNodeAction(AnalyzeMethod, SyntaxKind.MethodDeclaration);
     }
 
-    private static void AnalyzeNamedType(SymbolAnalysisContext context)
+    private static void AnalyzeMethod(SyntaxNodeAnalysisContext context)
     {
-        var namedType = (INamedTypeSymbol)context.Symbol;
+        var declaration = (MethodDeclarationSyntax)context.Node;
 
-        if (namedType.TypeKind != TypeKind.Class)
+        if (!TriggerMigrationMatcher.TryMatch(declaration, context.SemanticModel, context.CancellationToken, out var match))
             return;
 
-        foreach (var iface in namedType.AllInterfaces)
-        {
-            var metadataName = iface.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-
-            // Normalize generic display: IBeforeSaveTrigger<T> -> use metadata name with arity
-            var originalDef = iface.OriginalDefinition;
-            var qualifiedName = originalDef.ContainingNamespace + "." + originalDef.MetadataName;
-
-            foreach (var entry in TriggerMapping.Entries)
-            {
-                if (qualifiedName != entry.SyncInterfaceMetadataName)
-                    continue;
-
-                // Found a sync trigger interface — check if the class has the old async method signature
-                var method = namedType.GetMembers()
-                    .OfType<IMethodSymbol>()
-                    .FirstOrDefault(m =>
-                        m.Name == entry.SyncMethodName &&
-                        IsTaskReturnType(m.ReturnType) &&
-                        m.Parameters.Any(p => p.Type.ToDisplayString() == "System.Threading.CancellationToken"));
-
-                if (method == null)
-                    continue;
-
-                var properties = ImmutableDictionary.CreateBuilder<string, string?>();
-                properties.Add("SyncInterfaceShortName", entry.SyncInterfaceShortName);
-                properties.Add("AsyncInterfaceShortName", entry.AsyncInterfaceShortName);
-                properties.Add("SyncMethodName", entry.SyncMethodName);
-                properties.Add("AsyncMethodName", entry.AsyncMethodName);
-
-                var interfaceDisplayName = iface.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-
-                var diagnostic = Diagnostic.Create(
-                    DiagnosticDescriptors.EFCT001_OldTriggerSignature,
-                    method.Locations.FirstOrDefault() ?? namedType.Locations.FirstOrDefault(),
-                    properties.ToImmutable(),
-                    namedType.Name,
-                    interfaceDisplayName,
-                    entry.AsyncInterfaceShortName);
-
-                context.ReportDiagnostic(diagnostic);
-            }
-        }
-    }
-
-    private static bool IsTaskReturnType(ITypeSymbol type)
-    {
-        return type.ToDisplayString() == "System.Threading.Tasks.Task" ||
-               (type.OriginalDefinition.ToDisplayString() == "System.Threading.Tasks.Task<TResult>");
+        context.ReportDiagnostic(Diagnostic.Create(
+            DiagnosticDescriptors.EFCT001_OldTriggerSignature,
+            declaration.Identifier.GetLocation(),
+            match.Method.ContainingType.Name,
+            match.TriggerInterface.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+            match.Entry.AsyncInterfaceShortName));
     }
 }

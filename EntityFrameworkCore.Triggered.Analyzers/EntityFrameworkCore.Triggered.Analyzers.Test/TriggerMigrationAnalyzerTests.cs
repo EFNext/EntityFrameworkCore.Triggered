@@ -215,4 +215,87 @@ class MyTrigger : EntityFrameworkCore.Triggered.IAfterSaveFailedTrigger<Student>
                 .WithArguments("MyTrigger", "IAfterSaveFailedTrigger<Student>", "IAfterSaveFailedAsyncTrigger"))
             .RunAsync();
     }
+
+    [Fact]
+    public async Task Diagnostic_ForEachEntityTypeOfTheSameTrigger()
+    {
+        var test = TriggerInterfaceStubs + @"
+public class Teacher { }
+
+class MyTrigger : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>, EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Teacher>
+{
+    public System.Threading.Tasks.Task {|#0:BeforeSave|}(EntityFrameworkCore.Triggered.ITriggerContext<Student> context, System.Threading.CancellationToken cancellationToken)
+        => System.Threading.Tasks.Task.CompletedTask;
+
+    public System.Threading.Tasks.Task {|#1:BeforeSave|}(EntityFrameworkCore.Triggered.ITriggerContext<Teacher> context, System.Threading.CancellationToken cancellationToken)
+        => System.Threading.Tasks.Task.CompletedTask;
+}
+";
+
+        await CreateTest(test,
+            new DiagnosticResult("EFCT001", DiagnosticSeverity.Error)
+                .WithLocation(0)
+                .WithArguments("MyTrigger", "IBeforeSaveTrigger<Student>", "IBeforeSaveAsyncTrigger"),
+            new DiagnosticResult("EFCT001", DiagnosticSeverity.Error)
+                .WithLocation(1)
+                .WithArguments("MyTrigger", "IBeforeSaveTrigger<Teacher>", "IBeforeSaveAsyncTrigger"))
+            .RunAsync();
+    }
+
+    [Fact]
+    public async Task Diagnostic_WhenExplicitInterfaceImplementation()
+    {
+        var test = TriggerInterfaceStubs + @"
+class MyTrigger : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>
+{
+    System.Threading.Tasks.Task EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>.{|#0:BeforeSave|}(EntityFrameworkCore.Triggered.ITriggerContext<Student> context, System.Threading.CancellationToken cancellationToken)
+        => System.Threading.Tasks.Task.CompletedTask;
+}
+";
+
+        await CreateTest(test,
+            new DiagnosticResult("EFCT001", DiagnosticSeverity.Error)
+                .WithLocation(0)
+                .WithArguments("MyTrigger", "IBeforeSaveTrigger<Student>", "IBeforeSaveAsyncTrigger"))
+            .RunAsync();
+    }
+
+    [Fact]
+    public async Task Diagnostic_WhenInterfaceInheritedFromBaseClass()
+    {
+        var test = TriggerInterfaceStubs + @"
+abstract class TriggerBase : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>
+{
+    public abstract void BeforeSave(EntityFrameworkCore.Triggered.ITriggerContext<Student> context);
+}
+
+class MyTrigger : TriggerBase
+{
+    public System.Threading.Tasks.Task {|#0:BeforeSave|}(EntityFrameworkCore.Triggered.ITriggerContext<Student> context, System.Threading.CancellationToken cancellationToken)
+        => System.Threading.Tasks.Task.CompletedTask;
+}
+";
+
+        await CreateTest(test,
+            new DiagnosticResult("EFCT001", DiagnosticSeverity.Error)
+                .WithLocation(0)
+                .WithArguments("MyTrigger", "IBeforeSaveTrigger<Student>", "IBeforeSaveAsyncTrigger"))
+            .RunAsync();
+    }
+
+    [Fact]
+    public async Task NoDiagnostic_WhenParametersDoNotMatchTheTrigger()
+    {
+        var test = TriggerInterfaceStubs + @"
+class MyTrigger : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>
+{
+    public void BeforeSave(EntityFrameworkCore.Triggered.ITriggerContext<Student> context) { }
+
+    public System.Threading.Tasks.Task BeforeSave(string reason, System.Threading.CancellationToken cancellationToken)
+        => System.Threading.Tasks.Task.CompletedTask;
+}
+";
+
+        await CreateTest(test).RunAsync();
+    }
 }

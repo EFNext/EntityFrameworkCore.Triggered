@@ -1,7 +1,23 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <RootNamespace>EntityFrameworkCore.Triggered</RootNamespace>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddTriggerAnalyzersToPackage</TargetsForTfmSpecificContentInPackage>
+    <FirstTargetFramework>$(TargetFrameworks.Split(';')[0])</FirstTargetFramework>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\EntityFrameworkCore.Triggered.Analyzers\EntityFrameworkCore.Triggered.Analyzers\EntityFrameworkCore.Triggered.Analyzers.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" BundledAnalyzer="true" />
+    <ProjectReference Include="..\..\EntityFrameworkCore.Triggered.Analyzers\EntityFrameworkCore.Triggered.Analyzers.CodeFixes\EntityFrameworkCore.Triggered.Analyzers.CodeFixes.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" BundledAnalyzer="true" />
+  </ItemGroup>
+
+  <Target Name="AddTriggerAnalyzersToPackage" Condition="'$(TargetFramework)' == '$(FirstTargetFramework)'">
+    <MSBuild Projects="@(ProjectReference)" Condition="'%(ProjectReference.BundledAnalyzer)' == 'true'" Targets="GetTargetPath" RemoveProperties="TargetFramework;RuntimeIdentifier">
+      <Output TaskParameter="TargetOutputs" ItemName="_BundledAnalyzerAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="@(_BundledAnalyzerAssembly)" PackagePath="analyzers/dotnet/cs" />
+    </ItemGroup>
+  </Target>
 
 </Project>

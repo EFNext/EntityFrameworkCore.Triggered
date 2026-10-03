@@ -91,7 +91,6 @@ class MyTrigger : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>
     public void BeforeSave(EntityFrameworkCore.Triggered.ITriggerContext<Student> context)
     {
         context.Entity.ToString();
-        return;
     }
 }
 ";
@@ -121,7 +120,6 @@ class MyTrigger : EntityFrameworkCore.Triggered.Lifecycles.IBeforeSaveStartingTr
 {
     public void BeforeSaveStarting()
     {
-        return;
     }
 }
 ";
@@ -151,6 +149,123 @@ class MyTrigger : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>
 {
     public void BeforeSave(EntityFrameworkCore.Triggered.ITriggerContext<Student> context)
     {
+        context.Entity.ToString();
+    }
+}
+";
+
+        await CreateTest(test, fixedCode,
+            new DiagnosticResult("EFCT001", DiagnosticSeverity.Error)
+                .WithLocation(0)
+                .WithArguments("MyTrigger", "IBeforeSaveTrigger<Student>", "IBeforeSaveAsyncTrigger"))
+            .RunAsync();
+    }
+
+    [Theory]
+    [InlineData("public async System.Threading.Tasks.Task {|#0:BeforeSave|}(EntityFrameworkCore.Triggered.ITriggerContext<Student> context, System.Threading.CancellationToken cancellationToken) { await System.Threading.Tasks.Task.Yield(); }")]
+    [InlineData("public System.Threading.Tasks.Task {|#0:BeforeSave|}(EntityFrameworkCore.Triggered.ITriggerContext<Student> context, System.Threading.CancellationToken cancellationToken) { cancellationToken.ThrowIfCancellationRequested(); return System.Threading.Tasks.Task.CompletedTask; }")]
+    [InlineData("public System.Threading.Tasks.Task {|#0:BeforeSave|}(EntityFrameworkCore.Triggered.ITriggerContext<Student> context, System.Threading.CancellationToken cancellationToken) => System.Threading.Tasks.Task.Delay(1)")]
+    [InlineData("public System.Threading.Tasks.Task {|#0:BeforeSave|}(EntityFrameworkCore.Triggered.ITriggerContext<Student> context, System.Threading.CancellationToken cancellationToken) { if (context.Entity == null) return System.Threading.Tasks.Task.CompletedTask; return System.Threading.Tasks.Task.Delay(1); }")]
+    public async Task NoCodeFix_WhenConversionWouldChangeBehavior(string method)
+    {
+        var test = TriggerInterfaceStubs + @"
+class MyTrigger : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>
+{
+    " + method + @"
+}
+";
+
+        await CreateTest(test, test,
+            new DiagnosticResult("EFCT001", DiagnosticSeverity.Error)
+                .WithLocation(0)
+                .WithArguments("MyTrigger", "IBeforeSaveTrigger<Student>", "IBeforeSaveAsyncTrigger"))
+            .RunAsync();
+    }
+
+    [Fact]
+    public async Task CodeFix_ConvertsExpressionBodiedCompletedTask()
+    {
+        var test = TriggerInterfaceStubs + @"
+class MyTrigger : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>
+{
+    public System.Threading.Tasks.Task {|#0:BeforeSave|}(EntityFrameworkCore.Triggered.ITriggerContext<Student> context, System.Threading.CancellationToken cancellationToken) => System.Threading.Tasks.Task.CompletedTask;
+}
+";
+
+        var fixedCode = TriggerInterfaceStubs + @"
+class MyTrigger : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>
+{
+    public void BeforeSave(EntityFrameworkCore.Triggered.ITriggerContext<Student> context)
+    {
+    }
+}
+";
+
+        await CreateTest(test, fixedCode,
+            new DiagnosticResult("EFCT001", DiagnosticSeverity.Error)
+                .WithLocation(0)
+                .WithArguments("MyTrigger", "IBeforeSaveTrigger<Student>", "IBeforeSaveAsyncTrigger"))
+            .RunAsync();
+    }
+
+    [Fact]
+    public async Task CodeFix_LeavesNestedFunctionsUntouched()
+    {
+        var test = TriggerInterfaceStubs + @"
+class MyTrigger : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>
+{
+    public System.Threading.Tasks.Task {|#0:BeforeSave|}(EntityFrameworkCore.Triggered.ITriggerContext<Student> context, System.Threading.CancellationToken cancellationToken)
+    {
+        System.Func<System.Threading.Tasks.Task> callback = async () => { await System.Threading.Tasks.Task.Yield(); };
+        System.Func<System.Threading.Tasks.Task> completed = () => { return System.Threading.Tasks.Task.CompletedTask; };
+        return System.Threading.Tasks.Task.CompletedTask;
+    }
+}
+";
+
+        var fixedCode = TriggerInterfaceStubs + @"
+class MyTrigger : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>
+{
+    public void BeforeSave(EntityFrameworkCore.Triggered.ITriggerContext<Student> context)
+    {
+        System.Func<System.Threading.Tasks.Task> callback = async () => { await System.Threading.Tasks.Task.Yield(); };
+        System.Func<System.Threading.Tasks.Task> completed = () => { return System.Threading.Tasks.Task.CompletedTask; };
+    }
+}
+";
+
+        await CreateTest(test, fixedCode,
+            new DiagnosticResult("EFCT001", DiagnosticSeverity.Error)
+                .WithLocation(0)
+                .WithArguments("MyTrigger", "IBeforeSaveTrigger<Student>", "IBeforeSaveAsyncTrigger"))
+            .RunAsync();
+    }
+
+    [Fact]
+    public async Task CodeFix_ConvertsEarlyCompletedTaskReturns()
+    {
+        var test = TriggerInterfaceStubs + @"
+class MyTrigger : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>
+{
+    public System.Threading.Tasks.Task {|#0:BeforeSave|}(EntityFrameworkCore.Triggered.ITriggerContext<Student> context, System.Threading.CancellationToken cancellationToken)
+    {
+        if (context.Entity == null)
+            return System.Threading.Tasks.Task.CompletedTask;
+
+        context.Entity.ToString();
+        return System.Threading.Tasks.Task.CompletedTask;
+    }
+}
+";
+
+        var fixedCode = TriggerInterfaceStubs + @"
+class MyTrigger : EntityFrameworkCore.Triggered.IBeforeSaveTrigger<Student>
+{
+    public void BeforeSave(EntityFrameworkCore.Triggered.ITriggerContext<Student> context)
+    {
+        if (context.Entity == null)
+            return;
+
         context.Entity.ToString();
     }
 }

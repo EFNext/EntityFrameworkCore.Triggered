@@ -5,13 +5,16 @@
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <IsRoslynComponent>true</IsRoslynComponent>
         <IsPackable>false</IsPackable>
-        <!-- Avoids a NuGet restore clash with the PackageId of EntityFrameworkCore.Triggered.Analyzers.Package -->
-        <PackageId>EntityFrameworkCore.Triggered.Analyzers.Core</PackageId>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
         <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="EntityFrameworkCore.Triggered.Analyzers.CodeFixes" />
+        <InternalsVisibleTo Include="EntityFrameworkCore.Triggered.Analyzers.Test" />
     </ItemGroup>
 
     <ItemGroup>

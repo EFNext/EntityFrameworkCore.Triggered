@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Linq;
+using Microsoft.CodeAnalysis;
 
 namespace EntityFrameworkCore.Triggered.Analyzers;
 
@@ -124,4 +126,13 @@ internal static class TriggerMapping
             "AfterCommitCompleted", "AfterCommitCompletedAsync",
             "IAfterCommitCompletedTrigger", "IAfterCommitCompletedAsyncTrigger")
     );
+
+    private static readonly ImmutableDictionary<string, TriggerMappingEntry> EntriesBySyncInterface =
+        Entries.ToImmutableDictionary(entry => entry.SyncInterfaceMetadataName);
+
+    public static bool TryGetBySyncInterface(INamedTypeSymbol triggerInterface, out TriggerMappingEntry entry)
+    {
+        var definition = triggerInterface.OriginalDefinition;
+        return EntriesBySyncInterface.TryGetValue(definition.ContainingNamespace.ToDisplayString() + "." + definition.MetadataName, out entry);
+    }
 }
