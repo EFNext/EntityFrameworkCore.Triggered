@@ -123,6 +123,32 @@ namespace EntityFrameworkCore.Triggered.Tests.Infrastructure
         }
 
         [Fact]
+        public void AddTriggeredDbContextPool_KeepsRegisteredTriggerInstanceAcrossLeases()
+        {
+            var triggerStub = new TriggerStub<TestModel>();
+            var subject = new ServiceCollection();
+            subject.AddTriggeredDbContextPool<TestDbContext>(options => {
+                options.UseInMemoryDatabase(nameof(AddTriggeredDbContextPool_KeepsRegisteredTriggerInstanceAcrossLeases));
+                options.ConfigureWarnings(warningOptions => {
+                    warningOptions.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning);
+                });
+                options.UseTriggers(triggerOptions => triggerOptions.AddTrigger(triggerStub));
+            }, poolSize: 1);
+
+            using var serviceProvider = subject.BuildServiceProvider();
+
+            for (var lease = 0; lease < 3; lease++)
+            {
+                using var scope = serviceProvider.CreateScope();
+                var context = scope.ServiceProvider.GetRequiredService<TestDbContext>();
+                context.TestModels.Add(new TestModel());
+                context.SaveChanges();
+            }
+
+            Assert.Equal(3, triggerStub.BeforeSaveInvocations.Count);
+        }
+
+        [Fact]
         public void AddTriggeredDbContextPool_SupportsAScopedLifetime()
         {
             var subject = new ServiceCollection();

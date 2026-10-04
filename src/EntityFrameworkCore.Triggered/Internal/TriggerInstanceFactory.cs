@@ -21,10 +21,12 @@ namespace EntityFrameworkCore.Triggered.Internal
     {
         static ObjectFactory? _internalFactory;
 
+        readonly object? _capturedInstance;
         object? _instance;
 
         public TriggerInstanceFactory(object? instance)
         {
+            _capturedInstance = instance;
             _instance = instance;
         }
 
@@ -46,7 +48,7 @@ namespace EntityFrameworkCore.Triggered.Internal
 
         public void ResetState()
         {
-            _instance = null;
+            _instance = _capturedInstance;
         }
 
         public Task ResetStateAsync(CancellationToken cancellationToken = default)
