@@ -128,8 +128,7 @@ namespace EntityFrameworkCore.Triggered.Internal
                         {
                             var discoveredChange = _discoveredChanges[changeIndex];
 
-                            var currentEntityEntry = _changeTracker.Context.Entry(discoveredChange.Entity);
-                            var changeType = ResolveChangeType(currentEntityEntry);
+                            var changeType = ResolveChangeType(discoveredChange.EntityEntry);
 
                             if (changeType != discoveredChange.ChangeType)
                             {
