@@ -48,6 +48,15 @@ namespace EntityFrameworkCore.Triggered.Tests.Internal
                 => Enabled ? throw new OperationCanceledException() : new ValueTask<InterceptionResult<DbDataReader>>(result);
         }
 
+        class SuppressingConcurrencyInterceptor : ISaveChangesInterceptor
+        {
+            public InterceptionResult ThrowingConcurrencyException(ConcurrencyExceptionEventData eventData, InterceptionResult result)
+                => InterceptionResult.Suppress();
+
+            public ValueTask<InterceptionResult> ThrowingConcurrencyExceptionAsync(ConcurrencyExceptionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
+                => new(InterceptionResult.Suppress());
+        }
+
         readonly SqliteConnection _connection = new("DataSource=:memory:");
         readonly CancelingCommandInterceptor _cancelingInterceptor = new();
         readonly TriggerStub<Item> _trigger = new();
@@ -59,10 +68,14 @@ namespace EntityFrameworkCore.Triggered.Tests.Internal
 
         public void Dispose() => _connection.Dispose();
 
+        bool _suppressConcurrencyExceptions;
+
         void ConfigureOptions(DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder
                 .UseSqlite(_connection)
-                .AddInterceptors(_cancelingInterceptor)
+                .AddInterceptors(_suppressConcurrencyExceptions
+                    ? new IInterceptor[] { _cancelingInterceptor, new SuppressingConcurrencyInterceptor() }
+                    : new IInterceptor[] { _cancelingInterceptor })
                 .ConfigureWarnings(warnings => warnings.Ignore(CoreEventId.ManyServiceProvidersCreatedWarning))
                 .UseTriggers(triggerOptions => triggerOptions.AddTrigger(_trigger));
 
@@ -184,6 +197,103 @@ namespace EntityFrameworkCore.Triggered.Tests.Internal
             Assert.Equal("trigger failed", exception.Message);
 
             _trigger.AfterSaveFailedHandler = null;
+            await AssertNextSaveRaisesBeforeSaveTriggers(context, async);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task ConcurrencyException_WithThrowingAfterSaveFailedTrigger_ReleasesTriggerSession(bool async)
+        {
+            using var context = CreateContext();
+            CauseConcurrencyConflict(context, SeedItem(context));
+            _trigger.AfterSaveFailedHandler = (_, _) => throw new InvalidOperationException("trigger failed");
+
+            var exception = await Assert.ThrowsAsync<DbUpdateException>(() => Save(context, async));
+            Assert.Equal("trigger failed", Assert.IsType<InvalidOperationException>(exception.InnerException).Message);
+            Assert.Single(_trigger.AfterSaveFailedInvocations);
+
+            _trigger.AfterSaveFailedHandler = null;
+            await AssertNextSaveRaisesBeforeSaveTriggers(context, async);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task ConcurrencyException_SuppressedByLaterInterceptor_ReleasesTriggerSession(bool async)
+        {
+            _suppressConcurrencyExceptions = true;
+            using var context = CreateContext();
+            CauseConcurrencyConflict(context, SeedItem(context));
+
+            await Save(context, async);
+
+            await AssertNextSaveRaisesBeforeSaveTriggers(context, async);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task ConcurrencyException_SuppressedForMultipleCommands_RaisesAfterSaveFailedTriggersOnce(bool async)
+        {
+            _suppressConcurrencyExceptions = true;
+            using var context = CreateContext();
+            var first = SeedItem(context);
+            var second = SeedItem(context);
+            CauseConcurrencyConflict(context, first);
+            second.Name = "conflicting";
+
+            await Save(context, async);
+
+            Assert.Equal(2, _trigger.AfterSaveFailedInvocations.Count);
+            Assert.Contains(_trigger.AfterSaveFailedInvocations, invocation => invocation.context.Entity == first);
+            Assert.Contains(_trigger.AfterSaveFailedInvocations, invocation => invocation.context.Entity == second);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task ConcurrencyException_Suppressed_NestedSaveFailureRaisesItsOwnAfterSaveFailedTriggers(bool async)
+        {
+            _suppressConcurrencyExceptions = true;
+            using var context = CreateContext();
+            var seeded = SeedItem(context);
+            CauseConcurrencyConflict(context, seeded);
+
+            var duplicate = new Item { Id = seeded.Id, Name = "duplicate" };
+            var nestedSaveAttempted = false;
+            _trigger.AfterSaveHandler = _ => {
+                if (nestedSaveAttempted)
+                {
+                    return;
+                }
+
+                nestedSaveAttempted = true;
+                context.Entry(seeded).State = EntityState.Detached;
+                context.Items.Add(duplicate);
+                Assert.Throws<DbUpdateException>(() => context.SaveChanges());
+            };
+
+            await Save(context, async);
+
+            Assert.True(nestedSaveAttempted);
+            Assert.Contains(_trigger.AfterSaveFailedInvocations, invocation => invocation.context.Entity == duplicate);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task ConcurrencyExceptionThrownByAfterSaveTrigger_ReleasesTriggerSession(bool async)
+        {
+            using var context = CreateContext();
+            var item = SeedItem(context);
+            item.Name = "changed";
+            _trigger.AfterSaveHandler = _ => throw new DbUpdateConcurrencyException("from trigger");
+
+            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => Save(context, async));
+            Assert.Contains(_trigger.AfterSaveFailedInvocations, invocation => invocation.context.Entity == item);
+
+            _trigger.AfterSaveHandler = null;
             await AssertNextSaveRaisesBeforeSaveTriggers(context, async);
         }
 

@@ -14,11 +14,14 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   # Official NuGet Feed settings
   NUGET_FEED: https://api.nuget.org/v3/index.json
-  NUGET_KEY: ${{ secrets.NUGET_KEY }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - name: Setup .NET Core
@@ -39,9 +42,14 @@ jobs:
           do
             dotnet nuget push $f --source $GITHUB_FEED --api-key ${{github.token}} --skip-duplicate --no-symbols
           done
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: Koenbeuk
       - name: Push to NuGet Feed
         run: |
           for f in ./nupkg/*.nupkg
           do
-            dotnet nuget push $f --source $NUGET_FEED --skip-duplicate --api-key $NUGET_KEY
+            dotnet nuget push $f --source $NUGET_FEED --skip-duplicate --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
           done

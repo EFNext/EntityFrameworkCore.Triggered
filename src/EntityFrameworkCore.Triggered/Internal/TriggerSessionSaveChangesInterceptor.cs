@@ -17,6 +17,11 @@ namespace EntityFrameworkCore.Triggered.Internal
 
         ITriggerSession? _triggerSession;
         int _parallelSaveChangesCount;
+        int _afterSaveFailedTriggersRaisedDepth;
+        bool _subscribedToSaveChangesFailed;
+
+        // Triggers can call SaveChanges on the same context, so this tracks the nesting depth whose AfterSaveFailed triggers already ran
+        private bool AfterSaveFailedTriggersRaised => _parallelSaveChangesCount > 0 && _afterSaveFailedTriggersRaisedDepth == _parallelSaveChangesCount;
 
         private void EnlistTriggerSession(DbContextEventData eventData)
         {
@@ -50,16 +55,27 @@ namespace EntityFrameworkCore.Triggered.Internal
                 }
             }
 
+            if (!_subscribedToSaveChangesFailed)
+            {
+                eventData.Context!.SaveChangesFailed += OnSaveChangesFailed;
+                _subscribedToSaveChangesFailed = true;
+            }
+
             _parallelSaveChangesCount += 1;
         }
 
-        private void DelistTriggerSession(DbContextEventData eventData)
+        private void DelistTriggerSession(DbContext? context)
         {
             Debug.Assert(_triggerSession != null);
 
 #if DEBUG
-            Debug.Assert(_capturedDbContext == eventData.Context);
+            Debug.Assert(_capturedDbContext == context);
 #endif
+
+            if (AfterSaveFailedTriggersRaised)
+            {
+                _afterSaveFailedTriggersRaisedDepth = 0;
+            }
 
             _parallelSaveChangesCount -= 1;
 
@@ -90,7 +106,7 @@ namespace EntityFrameworkCore.Triggered.Internal
             catch
             {
                 // We're aborting the SaveChanges call, delist the trigger session now
-                DelistTriggerSession(eventData);
+                DelistTriggerSession(eventData.Context);
                 throw;
             }
             finally
@@ -126,7 +142,7 @@ namespace EntityFrameworkCore.Triggered.Internal
             catch
             {
                 // We're aborting the SaveChanges call, delist the trigger session now
-                DelistTriggerSession(eventData);
+                DelistTriggerSession(eventData.Context);
                 throw;
             }
             finally
@@ -145,7 +161,7 @@ namespace EntityFrameworkCore.Triggered.Internal
             _triggerSession.RaiseAfterSaveTriggers();
             _triggerSession.RaiseAfterSaveCompletedTriggers();
 
-            DelistTriggerSession(eventData);
+            DelistTriggerSession(eventData.Context);
 
             return result;
         }
@@ -163,7 +179,7 @@ namespace EntityFrameworkCore.Triggered.Internal
             _triggerSession.RaiseAfterSaveCompletedTriggers();
             await _triggerSession.RaiseAfterSaveCompletedAsyncTriggers(cancellationToken).ConfigureAwait(false);
 
-            DelistTriggerSession(eventData);
+            DelistTriggerSession(eventData.Context);
             
             return result;
         }
@@ -172,11 +188,14 @@ namespace EntityFrameworkCore.Triggered.Internal
         {
             try
             {
-                RaiseAfterSaveFailedTriggers(eventData.Exception);
+                if (!AfterSaveFailedTriggersRaised)
+                {
+                    RaiseAfterSaveFailedTriggers(eventData.Exception);
+                }
             }
             finally
             {
-                DelistTriggerSession(eventData);
+                DelistTriggerSession(eventData.Context);
             }
         }
 
@@ -184,19 +203,31 @@ namespace EntityFrameworkCore.Triggered.Internal
         {
             try
             {
-                await RaiseAfterSaveFailedAsyncTriggers(eventData.Exception, cancellationToken).ConfigureAwait(false);
+                if (!AfterSaveFailedTriggersRaised)
+                {
+                    await RaiseAfterSaveFailedAsyncTriggers(eventData.Exception, cancellationToken).ConfigureAwait(false);
+                }
             }
             finally
             {
-                DelistTriggerSession(eventData);
+                DelistTriggerSession(eventData.Context);
             }
         }
 
+        // An interceptor registered after us can still suppress the exception, so the session is only released once SaveChanges
+        // reports its final outcome: SavedChanges, SaveChangesFailed, SaveChangesCanceled or the DbContext.SaveChangesFailed event.
         public InterceptionResult ThrowingConcurrencyException(ConcurrencyExceptionEventData eventData, InterceptionResult result)
         {
-            if (!result.IsSuppressed)
+            if (!result.IsSuppressed && !AfterSaveFailedTriggersRaised)
             {
-                SaveChangesFailed(eventData);
+                try
+                {
+                    RaiseAfterSaveFailedTriggers(eventData.Exception);
+                }
+                finally
+                {
+                    _afterSaveFailedTriggersRaisedDepth = _parallelSaveChangesCount;
+                }
             }
 
             return result;
@@ -204,20 +235,47 @@ namespace EntityFrameworkCore.Triggered.Internal
 
         public async ValueTask<InterceptionResult> ThrowingConcurrencyExceptionAsync(ConcurrencyExceptionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
         {
-            if (!result.IsSuppressed)
+            if (!result.IsSuppressed && !AfterSaveFailedTriggersRaised)
             {
-                await SaveChangesFailedAsync(eventData, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await RaiseAfterSaveFailedAsyncTriggers(eventData.Exception, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    _afterSaveFailedTriggersRaisedDepth = _parallelSaveChangesCount;
+                }
             }
 
             return result;
         }
 
+        private void OnSaveChangesFailed(object? sender, SaveChangesFailedEventArgs eventArgs)
+        {
+            if (eventArgs.Exception is not DbUpdateConcurrencyException || _triggerSession is null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (!AfterSaveFailedTriggersRaised)
+                {
+                    RaiseAfterSaveFailedTriggers(eventArgs.Exception);
+                }
+            }
+            finally
+            {
+                DelistTriggerSession(sender as DbContext);
+            }
+        }
+
         public void SaveChangesCanceled(DbContextEventData eventData)
-            => DelistTriggerSession(eventData);
+            => DelistTriggerSession(eventData.Context);
 
         public Task SaveChangesCanceledAsync(DbContextEventData eventData, CancellationToken cancellationToken = default)
         {
-            DelistTriggerSession(eventData);
+            DelistTriggerSession(eventData.Context);
             return Task.CompletedTask;
         }
 
@@ -226,6 +284,7 @@ namespace EntityFrameworkCore.Triggered.Internal
             _triggerSession?.Dispose();
             _triggerSession = null;
             _parallelSaveChangesCount = 0;
+            _afterSaveFailedTriggersRaisedDepth = 0;
 #if DEBUG
             _capturedDbContext = null;
 #endif
